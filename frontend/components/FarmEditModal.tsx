@@ -1,0 +1,13 @@
+'use client';
+
+import { FormEvent, useState } from 'react';
+import { Save, X } from 'lucide-react';
+
+type Farm = { id: string; name: string; location: string; areaHectares: string | number; culture: string; status: string };
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
+
+export default function FarmEditModal({ farm, token, onClose, onSaved }: { farm: Farm; token: string; onClose: () => void; onSaved: (farm: Farm) => void }) {
+  const [name, setName] = useState(farm.name); const [location, setLocation] = useState(farm.location); const [area, setArea] = useState(String(farm.areaHectares)); const [culture, setCulture] = useState(farm.culture); const [status, setStatus] = useState(farm.status); const [error, setError] = useState(''); const [saving, setSaving] = useState(false);
+  async function submit(event: FormEvent) { event.preventDefault(); setSaving(true); setError(''); const response = await fetch(`${API}/farms/${farm.id}`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name, location, areaHectares: Number(area), culture, status }) }); const data = await response.json().catch(() => ({})); if (!response.ok) { setError(data.message ?? 'Não foi possível atualizar a fazenda.'); setSaving(false); return; } onSaved(data); }
+  return <div className="modal-overlay visible" onClick={event => { if (event.target === event.currentTarget) onClose(); }}><div className="modal-card" style={{ maxWidth: 620 }}><div className="modal-header"><h2>Editar Fazenda</h2><button className="modal-close-btn" onClick={onClose}><X /></button></div><div className="modal-body"><form className="farm-edit-form" onSubmit={submit}><div className="farm-edit-grid"><label>Nome da Fazenda<input value={name} onChange={e => setName(e.target.value)} required /></label><label>Localização<input value={location} onChange={e => setLocation(e.target.value)} required /></label><label>Área Total (Hectares)<input type="number" min="0" value={area} onChange={e => setArea(e.target.value)} required /></label><label>Cultura Principal<input value={culture} onChange={e => setCulture(e.target.value)} required /></label><label>Status<select value={status} onChange={e => setStatus(e.target.value)}><option>Ativa</option><option>Colheita</option><option>Preparo</option><option>Plantio</option></select></label></div>{error && <div className="login-error">{error}</div>}<div className="form-actions"><button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button><button className="btn btn-primary" disabled={saving}><Save size={14} /> {saving ? 'Salvando...' : 'Salvar Alterações'}</button></div></form></div></div></div>;
+}

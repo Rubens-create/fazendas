@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AgroClaw - Sistema inteligente de gerenciamento de fazendas com IA integrada">
+  <title>AgroClaw AI · Gerenciador de Fazendas</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Supabase JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <!-- Mobile Overlay -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <div class="app-layout">
+
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="sidebar" id="sidebar">
+      <!-- Brand -->
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <i data-lucide="sprout" style="stroke: white;"></i>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">AgroClaw</span>
+          <span class="brand-tagline">Farm Manager</span>
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="sidebar-nav">
+        <div class="sidebar-section-label">Principal</div>
+
+        <div class="nav-item active" data-tab="agente-ia" id="nav-agente-ia">
+          <div class="nav-icon">
+            <i data-lucide="bot"></i>
+          </div>
+          <span class="nav-label">Agente IA</span>
+          <span class="nav-badge">Novo</span>
+        </div>
+
+        <div class="nav-item" data-tab="fazendas" id="nav-fazendas">
+          <div class="nav-icon">
+            <i data-lucide="tractor"></i>
+          </div>
+          <span class="nav-label">Fazendas</span>
+          <span class="nav-badge">4</span>
+        </div>
+
+        <div class="nav-item" data-tab="agenda" id="nav-agenda">
+          <div class="nav-icon">
+            <i data-lucide="calendar"></i>
+          </div>
+          <span class="nav-label">Agenda</span>
+        </div>
+
+        <div class="nav-item" data-tab="pastas" id="nav-pastas">
+          <div class="nav-icon">
+            <i data-lucide="folder"></i>
+          </div>
+          <span class="nav-label">Pastas</span>
+        </div>
+      </nav>
+
+      <!-- Footer / User -->
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar">BF</div>
+          <div class="user-info">
+            <span class="user-name">Bruno</span>
+            <span class="user-role">Administrador</span>
+          </div>
+          <button class="user-settings-btn" aria-label="Configurações">
+            <i data-lucide="settings" style="width: 16px; height: 16px;"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============ MAIN CONTENT ============ -->
+    <main class="main-content">
+
+      <!-- Header -->
+      <header class="main-header">
+        <div class="header-left">
+          <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Menu">
+            <i data-lucide="menu"></i>
+          </button>
+          <h1 class="page-title" id="pageTitle">Agente IA</h1>
+          <span class="page-subtitle" id="pageSubtitle">Converse com seu assistente agronômico</span>
+        </div>
+        <div class="header-right">
+          <div class="header-search">
+            <i data-lucide="search" style="width: 16px; height: 16px;"></i>
+            <input type="text" placeholder="Buscar..." id="globalSearch">
+            <span class="search-shortcut">Ctrl+K</span>
+          </div>
+          <button class="header-btn" aria-label="Notificações" id="notifBtn">
+            <i data-lucide="bell" style="width: 18px; height: 18px;"></i>
+            <span class="notification-dot"></span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content -->
+      <div class="content-body">
+
+        <!-- ======== TAB: AGENTE IA ======== -->
+        <div class="tab-page active" id="tab-agente-ia">
+          <div class="chat-header-bar" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius-lg); margin-bottom: var(--space-md);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <i data-lucide="cpu" style="width: 18px; height: 18px; color: var(--accent-primary);"></i>
+              <span style="font-size: var(--font-size-sm); font-weight: 700; color: var(--text-primary);">Modelo IA (Groq):</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-sm);">
+              <select id="aiModelSelect" style="padding: 6px 12px; font-size: var(--font-size-xs); font-weight: 600; border-radius: var(--radius-md); border: 1px solid var(--border-primary); background: var(--bg-input); color: var(--text-primary); cursor: pointer;">
+                <option value="llama-3.3-70b-versatile" selected>Llama 3.3 70B Versatile (Recomendado)</option>
+                <option value="qwen/qwen3.6-27b">Qwen 3.6 27B (Groq)</option>
+                <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant (Ultra Rápido)</option>
+                <option value="mixtral-8x7b-32768">Mixtral 8x7B (Groq)</option>
+                <option value="gemma2-9b-it">Gemma 2 9B (Groq)</option>
+              </select>
+              <button id="clearChatBtn" style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: var(--font-size-xs); font-weight: 600; border-radius: var(--radius-md); border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.08); color: #dc2626; cursor: pointer; transition: all 0.2s;" title="Limpar Histórico de Conversa">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px; stroke: #dc2626;"></i>
+                Limpar Chat
+              </button>
+            </div>
+          </div>
+
+          <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+
+              <!-- AI Welcome -->
+              <div class="chat-message ai">
+                <div class="message-avatar">
+                  <i data-lucide="sprout" style="width: 16px; height: 16px; stroke: white;"></i>
+                </div>
+                <div class="message-content">
+                  <div class="message-header">
+                    <span class="message-sender">AgroClaw IA</span>
+                    <span class="message-time">agora</span>
+                  </div>
+                  <div class="message-body">
+                    <p>Olá! Sou seu assistente de inteligência artificial para gerenciamento de Fazendas.</p>
+                    <p>Como posso ajudar você hoje?</p>
+                  </div>
+                  <div class="chat-suggestions">
+                    <button class="suggestion-chip" data-suggestion="Como está o solo da Fazenda Sol Nascente?">
+                      <i data-lucide="info" style="width: 14px; height: 14px;"></i>
+                      Solo da Fazenda Sol Nascente
+                    </button>
+                    <button class="suggestion-chip" data-suggestion="Gerar relatório de colheita da Fazenda Boa Vista">
+                      <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
+                      Relatório de colheita
+                    </button>
+                    <button class="suggestion-chip" data-suggestion="Quais impostos ou obrigações vencem em breve?">
+                      <i data-lucide="calendar" style="width: 14px; height: 14px;"></i>
+                      Impostos e obrigações a vencer
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Chat Input -->
+            <div class="chat-input-area">
+              <div class="chat-input-wrapper">
+                <div id="chatAttachmentPreview" style="display: none; padding: 4px 12px; background: var(--bg-hover); border-radius: var(--radius-sm); margin-bottom: 8px; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-secondary); border: 1px solid var(--border-primary);">
+                  <span style="display: flex; align-items: center; gap: 6px;"><i data-lucide="paperclip" style="width: 12px; height: 12px;"></i> <span id="chatAttachmentName">arquivo.pdf</span></span>
+                  <button id="chatAttachmentRemove" aria-label="Remover anexo" style="background: none; border: none; color: var(--danger-color); cursor: pointer; padding: 2px; display: flex; align-items: center; justify-content: center;"><i data-lucide="x" style="width: 14px; height: 14px;"></i></button>
+                </div>
+                <div class="chat-input-row">
+                  <textarea id="chatInput" placeholder="Pergunte algo sobre suas fazendas..." rows="1"></textarea>
+                  <div class="chat-input-actions">
+                    <input type="file" id="chatAttachInput" style="display: none;" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.csv,.txt">
+                    <button class="input-action-btn" id="chatAttachBtn" aria-label="Anexar arquivo">
+                      <i data-lucide="paperclip" style="width: 18px; height: 18px;"></i>
+                    </button>
+                    <button class="input-action-btn" aria-label="Microfone">
+                      <i data-lucide="mic" style="width: 18px; height: 18px;"></i>
+                    </button>
+                    <button class="send-btn" id="sendBtn" aria-label="Enviar mensagem" disabled>
+                      <i data-lucide="send" style="width: 16px; height: 16px; stroke: white;"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="chat-disclaimer">AgroClaw IA pode gerar informações imprecisas. Verifique sempre dados críticos.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ======== TAB: FAZENDAS ======== -->
+        <div class="tab-page" id="tab-fazendas">
+          <div class="fazendas-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-md);">
+            <div>
+              <h2>Suas Fazendas</h2>
+            </div>
+            <div style="display: flex; gap: var(--space-md); align-items: center; flex-wrap: wrap;">
+              <div class="fazendas-stats">
+                <div class="stat-item">
+                  <span class="stat-value">4</span>
+                  <span class="stat-label">Fazendas</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value">2.450</span>
+                  <span class="stat-label">Hectares</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value">3</span>
+                  <span class="stat-label">Safras Ativas</span>
+                </div>
+              </div>
+              <button class="btn btn-primary" id="newFarmBtn">
+                <i data-lucide="plus" style="width: 18px; height: 18px; margin-right: 6px; stroke: white;"></i>
+                Nova Fazenda
+              </button>
+            </div>
+          </div>
+
+          <div class="fazendas-grid">
+
+            <!-- Fazenda 1 -->
+            <div class="fazenda-card" data-farm-id="sol-nascente">
+              <div class="fazenda-cover">
+                <img src="fazenda_sol_nascente.png" alt="Fazenda Sol Nascente">
+                <span class="fazenda-status ativa">● Ativa</span>
+              </div>
+              <div class="fazenda-body">
+                <h3 class="fazenda-name">Fazenda Sol Nascente</h3>
+                <div class="fazenda-location">
+                  <i data-lucide="map-pin" style="width: 12px; height: 12px; margin-right: 4px;"></i>
+                  Ribeirão Preto, SP
+                </div>
+                <div class="fazenda-metrics">
+                  <div class="metric">
+                    <div class="metric-value">800ha</div>
+                    <div class="metric-label">Área</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-value">Soja</div>
+                    <div class="metric-label">Cultura</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-value">68%</div>
+                    <div class="metric-label">Umidade</div>
+                  </div>
+                </div>
+                <div class="fazenda-actions">
+                  <button class="btn btn-primary">Ver Detalhes</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Fazenda 2 -->
+            <div class="fazenda-card" data-farm-id="boa-vista">
+              <div class="fazenda-cover">
+                <img src="fazenda_boa_vista.png" alt="Fazenda Boa Vista">
+                <span class="fazenda-status colheita">● Colheita</span>
+              </div>
+              <div class="fazenda-body">
+                <h3 class="fazenda-name">Fazenda Boa Vista</h3>
+                <div class="fazenda-location">
+                  <i data-lucide="map-pin" style="width: 12px; height: 12px; margin-right: 4px;"></i>
+                  Uberaba, MG
+                </div>
+                <div class="fazenda-metrics">
+                  <div class="metric">
+                    <div class="metric-value">650ha</div>
+                    <div class="metric-label">Área</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-value">Milho</div>
+                    <div class="metric-label">Cultura</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-value">45%</div>
+                    <div class="metric-label">Umidade</div>
+                  </div>
+                </div>
+                <div class="fazenda-actions">
+                  <button class="btn btn-primary">Ver Detalhes</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Fazenda 3 -->
+            <div class="fazenda-card" data-farm-id="serra-alta">
+              <div class="fazenda-cover">
+                <img src="fazenda_serra_alta.png" alt="Fazenda Serra Alta">
+                <span class="fazenda-status ativa">● Ativa</span>
+              </div>
+              <div class="fazenda-body">
+                <h3 class="fazenda-name">Fazenda Serra Alta</h3>
+                <div class="fazenda-location">
+                  <i data-lucide="map-pin" style="width: 12px; height: 12px; margin-right: 4px;"></i>
+                  Patrocínio, MG
+                </div>
+                <div class="fazenda-metrics">
+                  <div class="metric">
+                    <div class="metric-value">500ha</div>
+                    <div class="metric-label">Área</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-value">Café</div>
+                    <div class="metric-label">Cultura</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-value">72%</div>
+                    <div class="metric-label">Umidade</div>
+                  </div>
+                </div>
+                <div class="fazenda-actions">
+                  <button class="btn btn-primary">Ver Detalhes</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Fazenda 4 -->
+            <div class="fazenda-card" data-farm-id="vale-verde">
+              <div class="fazenda-cover">
+                <img src="fazenda_vale_verde.png" alt="Fazenda Vale Verde">
+                <span class="fazenda-status preparo">● Preparo</span>
+              </div>
+              <div class="fazenda-body">
+                <h3 class="fazenda-name">Fazenda Vale Verde</h3>
+                <div class="fazenda-location">
+                  <i data-lucide="map-pin" style="width: 12px; height: 12px; margin-right: 4px;"></i>
+                  Rondonópolis, MT
+                </div>
+                <div class="fazenda-metrics">
+                  <div class="metric">
+                    <div class="metric-value">500ha</div>
+                    <div class="metric-label">Área</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-value">Girassol</div>
+                    <div class="metric-label">Cultura</div>
+                  </div>
+                  <div class="metric">
+                    <div class="metric-value">55%</div>
+                    <div class="metric-label">Umidade</div>
+                  </div>
+                </div>
+                <div class="fazenda-actions">
+                  <button class="btn btn-primary">Ver Detalhes</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ======== TAB: AGENDA ======== -->
+        <div class="tab-page" id="tab-agenda">
+          <div class="agenda-layout">
+
+            <!-- Calendar Panel -->
+            <div class="calendar-panel">
+              <div class="calendar-header">
+                <h3 id="calendarMonthYear">Julho 2026</h3>
+                <div class="calendar-nav">
+                  <button id="calendarPrev" aria-label="Mês anterior">
+                    <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i>
+                  </button>
+                  <button id="calendarNext" aria-label="Próximo mês">
+                    <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="calendar-grid" id="calendarGrid">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+            <!-- Tasks Panel -->
+            <div class="tasks-panel">
+              <div class="tasks-header">
+                <h3>Obrigações e Lembretes Fiscais</h3>
+                <button class="add-task-btn" id="addTaskBtn">
+                  <i data-lucide="plus" style="width: 16px; height: 16px; margin-right: 4px; stroke: white;"></i>
+                  Nova Obrigação
+                </button>
+              </div>
+
+              <!-- Add Task Form -->
+              <div class="add-task-form" id="addTaskForm">
+                <div class="form-row">
+                  <input type="text" id="taskTitleInput" placeholder="Nome do imposto ou documento (ex: ITR, CCIR, CAR)...">
+                </div>
+                <div class="form-row">
+                  <input type="date" id="taskDateInput">
+                  <select id="taskPriorityInput">
+                    <option value="baixa">Baixa</option>
+                    <option value="media" selected>Média</option>
+                    <option value="alta">Alta</option>
+                  </select>
+                </div>
+                <div class="form-actions">
+                  <button class="btn btn-ghost" id="cancelTaskBtn">Cancelar</button>
+                  <button class="btn btn-primary" id="saveTaskBtn">Salvar Obrigação</button>
+                </div>
+              </div>
+
+              <div class="tasks-list" id="tasksList">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ======== TAB: PASTAS ======== -->
+        <div class="tab-page" id="tab-pastas">
+          <div class="pastas-header">
+            <h2>Arquivos e Documentos</h2>
+            <div style="display: flex; gap: var(--space-sm); align-items: center;">
+              <button class="btn btn-outline" id="folderBackBtn" style="display: none; border-color: var(--accent-primary); color: var(--accent-primary); font-weight: 600;">
+                <i data-lucide="arrow-left" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+                Voltar
+              </button>
+              <button class="btn btn-outline" id="newFolderBtn">
+                <i data-lucide="folder-plus" style="width: 14px; height: 14px; margin-right: 4px;"></i>
+                Nova Pasta
+              </button>
+              <button class="btn btn-primary" id="uploadFileBtn">
+                <i data-lucide="upload" style="width: 14px; height: 14px; margin-right: 4px; stroke: white;"></i>
+                Upload de Documento
+              </button>
+            </div>
+          </div>
+
+          <!-- Barra de Busca de Arquivos e Pastas -->
+          <div class="pastas-search-bar" style="margin-bottom: var(--space-md); position: relative;">
+            <div style="position: relative; display: flex; align-items: center;">
+              <i data-lucide="search" style="position: absolute; left: 12px; width: 16px; height: 16px; color: var(--text-tertiary);"></i>
+              <input type="text" id="pastasSearchInput" placeholder="Buscar arquivos ou pastas em toda a estrutura..." style="width: 100%; padding: 10px 12px 10px 38px; border-radius: var(--radius-md); border: 1px solid var(--border-primary); background: var(--bg-card); color: var(--text-primary); font-size: var(--font-size-sm);">
+              <button id="pastasSearchClearBtn" style="position: absolute; right: 12px; background: none; border: none; color: var(--text-tertiary); cursor: pointer; display: none;" title="Limpar busca">
+                <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Resultados da Busca com Nested Navigation -->
+          <div class="search-results-section" id="searchResultsSection" style="display: none; margin-bottom: var(--space-xl);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-md);">
+              <h3 style="font-size: var(--font-size-md); font-weight: 600; color: var(--text-primary);" id="searchResultsTitle">Resultados da Busca</h3>
+              <span id="searchResultsCount" style="font-size: var(--font-size-xs); color: var(--text-secondary); font-weight: 500;"></span>
+            </div>
+            <div id="searchResultsList" class="search-results-list" style="display: flex; flex-direction: column; gap: var(--space-sm);">
+              <!-- Populated by JS with nested navigation path -->
+            </div>
+          </div>
+
+          <div class="pastas-breadcrumb" id="pastasBreadcrumb">
+            <span class="breadcrumb-item active" data-folder="root">
+              <i data-lucide="folder" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>
+              Todos os Arquivos
+            </span>
+          </div>
+
+          <div class="pastas-grid" id="pastasGrid">
+            <!-- Populated by JS -->
+          </div>
+
+          <div class="files-section" id="filesSection">
+            <h3 class="files-section-title" id="filesSectionTitle">Arquivos</h3>
+            <div class="files-list" id="filesList">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ============ MODAL: DETALHES DA FAZENDA & AUDITORIA ============ -->
+  <div class="modal-overlay" id="farmDetailsModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modalFarmName">Detalhes da Fazenda</h2>
+        <button class="modal-close-btn" id="modalCloseBtn" aria-label="Fechar">
+          <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-grid">
+          <!-- Coluna 1: Informações Gerais -->
+          <div class="modal-col-info">
+            <div class="modal-cover-img" id="modalFarmCover">
+              <!-- Imagem da Fazenda via JS -->
+            </div>
+            <div class="modal-meta-list">
+              <div class="modal-meta-item">
+                <span class="meta-label">
+                  <i data-lucide="map-pin" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>
+                  Localização:
+                </span>
+                <span class="meta-value" id="modalFarmLocation">-</span>
+              </div>
+              <div class="modal-meta-item">
+                <span class="meta-label">
+                  <i data-lucide="ruler" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>
+                  Área Total:
+                </span>
+                <span class="meta-value" id="modalFarmArea">-</span>
+              </div>
+              <div class="modal-meta-item">
+                <span class="meta-label">
+                  <i data-lucide="sprout" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>
+                  Cultura Ativa:
+                </span>
+                <span class="meta-value" id="modalFarmCulture">-</span>
+              </div>
+              <div class="modal-meta-item">
+                <span class="meta-label">
+                  <i data-lucide="activity" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>
+                  Status:
+                </span>
+                <span class="meta-value" id="modalFarmStatus">-</span>
+              </div>
+            </div>
+          </div>
+          <!-- Coluna 2: Documentos e Auditoria -->
+          <div class="modal-col-docs">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-sm); flex-wrap: wrap; gap: 8px;">
+              <div>
+                <h3 style="margin-bottom: 2px;">Auditoria de Documentos</h3>
+                <p class="modal-docs-intro" style="margin-bottom: 0;">Verificação de conformidade fundiária, ambiental e pecuária.</p>
+              </div>
+              <span id="auditOverallBadge" class="doc-status-badge presente" style="font-size: 11px;">0/0 Conformes</span>
+            </div>
+
+            <!-- Abas de Categoria de Documentos na Auditoria -->
+            <div class="audit-category-tabs" id="auditCategoryTabs">
+              <button type="button" class="audit-tab-btn active" data-audit-cat="propriedade">
+                <i data-lucide="home" style="width: 14px; height: 14px;"></i>
+                Propriedade <span class="audit-tab-count" id="auditPropCount">0</span>
+              </button>
+              <button type="button" class="audit-tab-btn" data-audit-cat="ambientais">
+                <i data-lucide="shield" style="width: 14px; height: 14px;"></i>
+                Ambientais <span class="audit-tab-count" id="auditAmbCount">0</span>
+              </button>
+              <button type="button" class="audit-tab-btn" data-audit-cat="pecuarios">
+                <i data-lucide="badge-check" style="width: 14px; height: 14px;"></i>
+                ADAB Pecuária <span class="audit-tab-count" id="auditPecCount">0</span>
+              </button>
+            </div>
+
+            <div class="docs-checklist" id="modalDocsChecklist">
+              <!-- Checklist dinâmica gerada via JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: UPLOAD DE DOCUMENTOS (SUPABASE STORAGE) ============ -->
+  <div class="modal-overlay" id="uploadDocumentModal">
+    <div class="modal-card" style="max-width: 540px;">
+      <div class="modal-header">
+        <h2>Upload para Supabase Storage</h2>
+        <button class="modal-close-btn" id="uploadModalCloseBtn" aria-label="Fechar">
+          <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="uploadDocForm" style="display: flex; flex-direction: column; gap: var(--space-md);">
+          <div id="detectedLocationBadge" style="padding: 10px 14px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); font-size: var(--font-size-xs); color: #047857; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="compass" style="width: 14px; height: 14px; stroke: #047857;"></i>
+            <span id="detectedLocationText">Local detectado: Todos os Arquivos</span>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Fazenda de Destino:</label>
+            <select id="uploadFarmSelect" style="width: 100%;" required>
+              <!-- Preenchido via JS -->
+            </select>
+          </div>
+          <div>
+            <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Pasta / Categoria de Destino:</label>
+            <select id="uploadCategorySelect" style="width: 100%;" required>
+              <!-- Preenchido dinamicamente com pastas padrao + personalizadas -->
+            </select>
+          </div>
+          <div>
+            <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Selecione o Arquivo (PDF, JPG, PNG, XLSX):</label>
+            <div class="custom-file-upload">
+              <input type="file" id="uploadFileInput" required>
+              <div class="file-upload-dropzone">
+                <div class="dropzone-icon">
+                  <i data-lucide="upload-cloud" style="width: 24px; height: 24px; color: var(--accent-primary);"></i>
+                </div>
+                <div class="dropzone-text">
+                  <span class="dropzone-title" id="dropzoneTitle">Clique ou arraste o arquivo aqui</span>
+                  <span class="dropzone-subtitle" id="selectedFileName">Suporta PDF, JPG, PNG, XLSX e DOC</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="uploadStatusMessage" style="font-size: var(--font-size-xs); font-weight: 600;"></div>
+          <div style="display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: var(--space-md);">
+            <button type="button" class="btn btn-ghost" id="uploadCancelBtn">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="uploadSubmitBtn">
+              <i data-lucide="upload-cloud" style="width: 16px; height: 16px; margin-right: 4px; stroke: white;"></i>
+              Enviar para Bucket
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: CRIAR NOVA PASTA PERSISTENTE ============ -->
+  <div class="modal-overlay" id="newFolderModal">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2>Criar Nova Pasta Persistente</h2>
+        <button class="modal-close-btn" id="newFolderModalCloseBtn" aria-label="Fechar">
+          <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="newFolderForm" style="display: flex; flex-direction: column; gap: var(--space-md);">
+          <div id="newFolderLocationBadge" style="padding: 10px 14px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); font-size: var(--font-size-xs); color: #047857; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+            <i data-lucide="folder-plus" style="width: 14px; height: 14px; stroke: #047857;"></i>
+            <span id="newFolderLocationText">Local: Todos os Arquivos (Criar Categoria com Fazendas)</span>
+          </div>
+
+          <div>
+            <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Nome da Nova Pasta:</label>
+            <input type="text" id="newFolderNameInput" placeholder="Ex: Licenciamentos, Notas Fiscais 2026..." style="width: 100%; padding: var(--space-sm) var(--space-md);" required>
+          </div>
+          <div>
+            <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Ícone Representativo:</label>
+            <input type="hidden" id="newFolderIconInput" value="folder" required>
+            <div class="icon-picker-grid" id="iconPickerGrid">
+              <button type="button" class="icon-picker-tile active" data-icon="folder">
+                <i data-lucide="folder"></i>
+              </button>
+              <button type="button" class="icon-picker-tile" data-icon="file-text">
+                <i data-lucide="file-text"></i>
+              </button>
+              <button type="button" class="icon-picker-tile" data-icon="shield">
+                <i data-lucide="shield"></i>
+              </button>
+              <button type="button" class="icon-picker-tile" data-icon="receipt">
+                <i data-lucide="receipt"></i>
+              </button>
+              <button type="button" class="icon-picker-tile" data-icon="droplet">
+                <i data-lucide="droplet"></i>
+              </button>
+              <button type="button" class="icon-picker-tile" data-icon="truck">
+                <i data-lucide="truck"></i>
+              </button>
+              <button type="button" class="icon-picker-tile" data-icon="dollar-sign">
+                <i data-lucide="dollar-sign"></i>
+              </button>
+              <button type="button" class="icon-picker-tile" data-icon="archive">
+                <i data-lucide="archive"></i>
+              </button>
+              <button type="button" class="icon-picker-tile" data-icon="camera">
+                <i data-lucide="camera"></i>
+              </button>
+              <button type="button" class="icon-picker-tile" data-icon="map">
+                <i data-lucide="map"></i>
+              </button>
+              <button type="button" class="icon-picker-tile" data-icon="bar-chart-2">
+                <i data-lucide="bar-chart-2"></i>
+              </button>
+              <button type="button" class="icon-picker-tile" data-icon="tractor">
+                <i data-lucide="tractor"></i>
+              </button>
+            </div>
+          </div>
+          <div>
+            <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Cor de Destaque:</label>
+            <select id="newFolderColorSelect" style="width: 100%;" required>
+              <option value="laudos">Verde (Laudos / Meio Ambiente)</option>
+              <option value="contratos">Azul Índigo (Contratos / Finanças)</option>
+              <option value="notas">Laranja / Âmbar (Notas / Taxas)</option>
+              <option value="drone">Azul Claro (Imagens / Mapas)</option>
+              <option value="mapas">Roxo (Georreferenciamento)</option>
+              <option value="relatorios">Vermelho (Obrigatório / ITR)</option>
+            </select>
+          </div>
+          <div id="newFolderStatusMessage" style="font-size: var(--font-size-xs); font-weight: 600;"></div>
+          <div style="display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: var(--space-md);">
+            <button type="button" class="btn btn-ghost" id="newFolderCancelBtn">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="newFolderSubmitBtn">
+              <i data-lucide="check" style="width: 16px; height: 16px; margin-right: 4px; stroke: white;"></i>
+              Criar e Salvar no Supabase
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: EDITAR OBRIGAÇÃO / LEMBRETE FISCAL ============ -->
+  <div class="modal-overlay" id="editTaskModal">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2>Editar Obrigação / Lembrete Fiscal</h2>
+        <button class="modal-close-btn" id="editTaskModalCloseBtn" aria-label="Fechar">
+          <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="editTaskForm" style="display: flex; flex-direction: column; gap: var(--space-md);">
+          <input type="hidden" id="editTaskIdInput">
+          <div>
+            <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Nome do Imposto ou Obrigação:</label>
+            <input type="text" id="editTaskTitleInput" required style="width: 100%;">
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+            <div>
+              <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Data de Vencimento:</label>
+              <input type="date" id="editTaskDateInput" required style="width: 100%;">
+            </div>
+            <div>
+              <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Prioridade:</label>
+              <select id="editTaskPriorityInput" style="width: 100%;" required>
+                <option value="baixa">Baixa</option>
+                <option value="media">Média</option>
+                <option value="alta">Alta</option>
+              </select>
+            </div>
+          </div>
+          <div id="editTaskStatusMessage" style="font-size: var(--font-size-xs); font-weight: 600;"></div>
+          <div style="display: flex; justify-content: flex-end; gap: var(--space-sm); margin-top: var(--space-md);">
+            <button type="button" class="btn btn-ghost" id="editTaskCancelBtn">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="editTaskSaveBtn">
+              <i data-lucide="check" style="width: 16px; height: 16px; margin-right: 4px; stroke: white;"></i>
+              Salvar Alterações
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: CRIAR NOVA FAZENDA (WIZARD 4 ETAPAS) ============ -->
+  <div class="modal-overlay" id="newFarmModal">
+    <div class="modal-card wizard-modal-card" style="max-width: 780px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="brand-icon" style="width: 32px; height: 32px; font-size: 1rem; border-radius: var(--radius-sm);">
+            <i data-lucide="tractor" style="stroke: white; width: 18px; height: 18px;"></i>
+          </div>
+          <div>
+            <h2 style="font-size: var(--font-size-lg); margin-bottom: 2px;">Cadastrar Nova Fazenda</h2>
+            <span style="font-size: var(--font-size-xs); color: var(--text-tertiary);" id="wizardStepSubtitle">Etapa 1 de 4: Informações e dados cadastrais básicos</span>
+          </div>
+        </div>
+        <button class="modal-close-btn" id="newFarmModalCloseBtn" aria-label="Fechar">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <!-- Stepper Bar -->
+      <div class="wizard-stepper-container">
+        <div class="wizard-stepper" id="farmWizardStepper">
+          <div class="wizard-step-node active" data-step="1">
+            <div class="step-num">1</div>
+            <div class="step-info">
+              <span class="step-title">Dados Básicos</span>
+              <span class="step-desc">Identificação</span>
+            </div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="wizard-step-node" data-step="2">
+            <div class="step-num">2</div>
+            <div class="step-info">
+              <span class="step-title">Propriedade</span>
+              <span class="step-desc">Fundiários</span>
+            </div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="wizard-step-node" data-step="3">
+            <div class="step-num">3</div>
+            <div class="step-info">
+              <span class="step-title">Ambientais</span>
+              <span class="step-desc">Licenças & CAR</span>
+            </div>
+          </div>
+          <div class="step-connector"></div>
+          <div class="wizard-step-node" data-step="4">
+            <div class="step-num">4</div>
+            <div class="step-info">
+              <span class="step-title">ADAB Pecuária</span>
+              <span class="step-desc">GTA & Sanidade</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-body" style="padding-top: var(--space-md);">
+        <form id="newFarmForm">
+
+          <!-- ETAPA 1: DADOS BÁSICOS -->
+          <div class="wizard-pane active" id="wizardPane1">
+            <div class="wizard-pane-header">
+              <div class="wizard-badge-icon">
+                <i data-lucide="map-pin"></i>
+              </div>
+              <div>
+                <h3>Etapa 1: Dados Básicos e Localização</h3>
+                <p>Preencha os dados primários de identificação da nova propriedade rural.</p>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); margin-bottom: var(--space-md);">
+              <div style="grid-column: span 2;">
+                <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Nome da Fazenda *</label>
+                <input type="text" id="newFarmNameInput" placeholder="Ex: Fazenda Santa Luíza" style="width: 100%;" required>
+              </div>
+              <div>
+                <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Localização (Cidade, UF) *</label>
+                <input type="text" id="newFarmLocationInput" placeholder="Ex: Franca, SP" style="width: 100%;" required>
+              </div>
+              <div>
+                <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Área Total (Hectares) *</label>
+                <input type="text" id="newFarmAreaInput" placeholder="Ex: 450" style="width: 100%;" required>
+              </div>
+              <div>
+                <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Cultura Principal *</label>
+                <input type="text" id="newFarmCultureInput" placeholder="Ex: Café, Soja, Gado de Corte" style="width: 100%;" required>
+              </div>
+              <div>
+                <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Status Inicial da Atividade *</label>
+                <select id="newFarmStatusInput" style="width: 100%;">
+                  <option value="Ativa" selected>🟢 Ativa</option>
+                  <option value="Colheita">🌾 Colheita</option>
+                  <option value="Preparo">🚜 Preparo</option>
+                  <option value="Plantio">🌱 Plantio</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="margin-bottom: var(--space-lg);">
+              <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Foto / Capa Representativa</label>
+              <div class="farm-cover-selector" id="farmCoverSelector">
+                <label class="cover-option active">
+                  <input type="radio" name="farmCoverChoice" value="fazenda_sol_nascente.png" checked>
+                  <img src="fazenda_sol_nascente.png" alt="Capa 1">
+                  <span>Sol Nascente</span>
+                </label>
+                <label class="cover-option">
+                  <input type="radio" name="farmCoverChoice" value="fazenda_boa_vista.png">
+                  <img src="fazenda_boa_vista.png" alt="Capa 2">
+                  <span>Boa Vista</span>
+                </label>
+                <label class="cover-option">
+                  <input type="radio" name="farmCoverChoice" value="fazenda_serra_alta.png">
+                  <img src="fazenda_serra_alta.png" alt="Capa 3">
+                  <span>Serra Alta</span>
+                </label>
+                <label class="cover-option">
+                  <input type="radio" name="farmCoverChoice" value="fazenda_vale_verde.png">
+                  <img src="fazenda_vale_verde.png" alt="Capa 4">
+                  <span>Vale Verde</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="wizard-footer">
+              <button type="button" class="btn btn-outline" id="newFarmCancelBtn">Cancelar</button>
+              <button type="button" class="btn btn-primary" id="wizardNextBtn1">
+                Avançar: Documentos da Propriedade
+                <i data-lucide="arrow-right" style="width: 16px; height: 16px; margin-left: 4px;"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- ETAPA 2: DOCUMENTOS DA PROPRIEDADE -->
+          <div class="wizard-pane" id="wizardPane2">
+            <div class="wizard-pane-header">
+              <div class="wizard-badge-icon" style="background: rgba(99, 102, 241, 0.1); color: var(--accent-secondary);">
+                <i data-lucide="file-text"></i>
+              </div>
+              <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                  <h3>Etapa 2: Documentos da Propriedade</h3>
+                  <div class="checklist-quick-actions">
+                    <span class="checklist-counter-badge" id="propriedadeCheckCount">0 de 10 selecionados</span>
+                    <button type="button" class="btn-action-link" id="propSelectAllBtn">Selecionar Todos</button>
+                    <span style="color: var(--border-primary);">|</span>
+                    <button type="button" class="btn-action-link" id="propClearAllBtn">Desmarcar</button>
+                  </div>
+                </div>
+                <p>Marque os documentos fundiários e fiscais que a fazenda possui ou tem em andamento.</p>
+              </div>
+            </div>
+
+            <div class="wizard-checklist-table" id="propriedadeChecklistContainer">
+              <!-- Gerado dinamicamente via JS -->
+            </div>
+
+            <div class="wizard-footer">
+              <button type="button" class="btn btn-outline" id="wizardBackBtn2">
+                <i data-lucide="arrow-left" style="width: 16px; height: 16px; margin-right: 4px;"></i>
+                Voltar: Dados Básicos
+              </button>
+              <button type="button" class="btn btn-primary" id="wizardNextBtn2">
+                Avançar: Documentos Ambientais
+                <i data-lucide="arrow-right" style="width: 16px; height: 16px; margin-left: 4px;"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- ETAPA 3: DOCUMENTOS AMBIENTAIS -->
+          <div class="wizard-pane" id="wizardPane3">
+            <div class="wizard-pane-header">
+              <div class="wizard-badge-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--accent-primary);">
+                <i data-lucide="shield"></i>
+              </div>
+              <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                  <h3>Etapa 3: Documentos Ambientais</h3>
+                  <div class="checklist-quick-actions">
+                    <span class="checklist-counter-badge" id="ambientaisCheckCount">0 de 28 selecionados</span>
+                    <button type="button" class="btn-action-link" id="ambSelectAllBtn">Selecionar Todos</button>
+                    <span style="color: var(--border-primary);">|</span>
+                    <button type="button" class="btn-action-link" id="ambClearAllBtn">Desmarcar</button>
+                  </div>
+                </div>
+                <p>Marque cadastros, licenças prévias/operação, outorgas d'água e certificados florestais.</p>
+              </div>
+            </div>
+
+            <div class="wizard-checklist-table" id="ambientaisChecklistContainer">
+              <!-- Gerado dinamicamente via JS -->
+            </div>
+
+            <div class="wizard-footer">
+              <button type="button" class="btn btn-outline" id="wizardBackBtn3">
+                <i data-lucide="arrow-left" style="width: 16px; height: 16px; margin-right: 4px;"></i>
+                Voltar: Propriedade
+              </button>
+              <button type="button" class="btn btn-primary" id="wizardNextBtn3">
+                Avançar: Documentos ADAB
+                <i data-lucide="arrow-right" style="width: 16px; height: 16px; margin-left: 4px;"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- ETAPA 4: DOCUMENTOS PECUÁRIOS - ADAB -->
+          <div class="wizard-pane" id="wizardPane4">
+            <div class="wizard-pane-header">
+              <div class="wizard-badge-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--accent-warning);">
+                <i data-lucide="badge-check"></i>
+              </div>
+              <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                  <h3>Etapa 4: Documentos Pecuários - ADAB</h3>
+                  <div class="checklist-quick-actions">
+                    <span class="checklist-counter-badge" id="pecuariosCheckCount">0 de 8 selecionados</span>
+                    <button type="button" class="btn-action-link" id="pecSelectAllBtn">Selecionar Todos</button>
+                    <span style="color: var(--border-primary);">|</span>
+                    <button type="button" class="btn-action-link" id="pecClearAllBtn">Desmarcar</button>
+                  </div>
+                </div>
+                <p>Marque fichas sanitárias, cadastros agropecuários, guias de trânsito (GTA) e notas fiscais.</p>
+              </div>
+            </div>
+
+            <div class="wizard-checklist-table" id="pecuariosChecklistContainer">
+              <!-- Gerado dinamicamente via JS -->
+            </div>
+
+            <div id="newFarmStatusFeedback" style="font-size: var(--font-size-xs); font-weight: 600; margin-top: var(--space-sm);"></div>
+
+            <div class="wizard-footer">
+              <button type="button" class="btn btn-outline" id="wizardBackBtn4">
+                <i data-lucide="arrow-left" style="width: 16px; height: 16px; margin-right: 4px;"></i>
+                Voltar: Ambientais
+              </button>
+              <button type="submit" class="btn btn-primary" id="wizardSubmitFarmBtn" style="background: linear-gradient(135deg, var(--accent-primary), #059669);">
+                <i data-lucide="check" style="width: 16px; height: 16px; margin-right: 4px; stroke: white;"></i>
+                Finalizar e Cadastrar Fazenda
+              </button>
+            </div>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: RENOMEAR PASTA ============ -->
+  <div class="modal-overlay" id="renameFolderModal">
+    <div class="modal-card" style="max-width: 420px;">
+      <div class="modal-header">
+        <h2>Renomear Pasta</h2>
+        <button class="modal-close-btn" id="renameFolderCloseBtn" aria-label="Fechar">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="renameFolderForm">
+          <input type="hidden" id="renameFolderId">
+          <div style="margin-bottom: var(--space-md);">
+            <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Novo Nome da Pasta:</label>
+            <input type="text" id="renameFolderNameInput" style="width: 100%; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--border-primary); background: var(--bg-card); color: var(--text-primary);" required>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: var(--space-sm);">
+            <button type="button" class="btn btn-ghost" id="renameFolderCancelBtn">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Salvar Nome</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL: MOVER ARQUIVO OU PASTA ============ -->
+  <div class="modal-overlay" id="moveItemModal">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2 id="moveItemTitle">Mover Item</h2>
+        <button class="modal-close-btn" id="moveItemCloseBtn" aria-label="Fechar">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="moveItemForm">
+          <input type="hidden" id="moveItemType">
+          <input type="hidden" id="moveItemId">
+          <p id="moveItemNameText" style="font-size: var(--font-size-sm); font-weight: 600; margin-bottom: var(--space-md); color: var(--text-secondary);"></p>
+          
+          <div style="margin-bottom: var(--space-md);">
+            <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Fazenda de Destino:</label>
+            <select id="moveTargetFarmSelect" style="width: 100%; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--border-primary); background: var(--bg-card); color: var(--text-primary);"></select>
+          </div>
+
+          <div style="margin-bottom: var(--space-lg);">
+            <label style="display: block; font-size: var(--font-size-sm); font-weight: 600; margin-bottom: 6px;">Pasta de Destino:</label>
+            <select id="moveTargetFolderSelect" style="width: 100%; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); border: 1px solid var(--border-primary); background: var(--bg-card); color: var(--text-primary);"></select>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: var(--space-sm);">
+            <button type="button" class="btn btn-ghost" id="moveItemCancelBtn">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Mover para Destino</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TOOLTIP POPOVER DO CALENDÁRIO ============ -->
+  <div class="calendar-tooltip" id="calendarTooltip"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

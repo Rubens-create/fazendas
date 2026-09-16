@@ -1,0 +1,116 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(ADMIN)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Farm {
+  id          String              @id @default(uuid()) @db.Uuid
+  slug        String              @unique
+  name        String              @map("name")
+  location    String
+  areaHectares Decimal             @map("area_hectares") @db.Decimal(12, 2)
+  culture     String
+  status      String
+  coverImage  String?             @map("cover_image")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  checklist   FarmChecklistItem[]
+  obligations Obligation[]
+  folders     Folder[]
+  documents   Document[]
+
+  @@map("farms")
+}
+
+model FarmChecklistItem {
+  id           String   @id @default(uuid()) @db.Uuid
+  farmId       String   @map("farm_id") @db.Uuid
+  documentKey       String   @map("document_key")
+  documentDate      DateTime? @map("document_date") @db.Date
+  dueDate           DateTime? @map("due_date") @db.Date
+  renewalComments   String?   @map("renewal_comments")
+  renewalDate      DateTime? @map("renewal_date") @db.Date
+  documentStatus   String?   @map("document_status")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  farm         Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@unique([farmId, documentKey])
+  @@map("farm_checklist_items")
+}
+
+model Obligation {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String
+  dueDate     DateTime @map("due_date") @db.Date
+  priority    String
+  completed   Boolean  @default(false)
+  category    String?
+  farmId      String?  @map("farm_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  farm        Farm?    @relation(fields: [farmId], references: [id], onDelete: SetNull)
+
+  @@map("obligations")
+}
+
+model Folder {
+  id             String     @id @default(uuid()) @db.Uuid
+  name           String
+  icon           String
+  colorClass     String     @map("color_class")
+  farmId         String?    @map("farm_id") @db.Uuid
+  parentFolderId String?    @map("parent_folder_id") @db.Uuid
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+  farm           Farm?      @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  parentFolder   Folder?    @relation("FolderTree", fields: [parentFolderId], references: [id], onDelete: Cascade)
+  children       Folder[]   @relation("FolderTree")
+  documents      Document[]
+
+  @@map("folders")
+}
+
+model Document {
+  id                    String   @id @default(uuid()) @db.Uuid
+  farmId                String?  @map("farm_id") @db.Uuid
+  folderId              String?  @map("folder_id") @db.Uuid
+  checklistDocumentKey  String?  @map("checklist_document_key")
+  originalName          String   @map("original_name")
+  fileType              String   @map("file_type")
+  fileSize              Int      @map("file_size")
+  storagePath           String   @map("storage_path")
+  uploadedAt            DateTime @default(now()) @map("uploaded_at")
+  farm                  Farm?    @relation(fields: [farmId], references: [id], onDelete: SetNull)
+  folder                Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  @@map("documents")
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  sender    String
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("chat_messages")
+}
+
+enum UserRole {
+  ADMIN
+}

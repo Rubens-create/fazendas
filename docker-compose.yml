@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:18
+    container_name: agroclaw-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agroclaw
+      POSTGRES_PASSWORD: agroclaw
+      POSTGRES_DB: agroclaw
+    ports:
+      - "5432:5432"
+    volumes:
+      - agroclaw-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agroclaw -d agroclaw"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: agroclaw-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://agroclaw:agroclaw@db:5432/agroclaw?schema=public
+      STORAGE_ROOT: /app/storage
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - agroclaw-storage:/app/storage
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    container_name: agroclaw-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    ports:
+      - "3002:3000"
+    depends_on:
+      - backend
+
+volumes:
+  agroclaw-postgres-data:
+  agroclaw-storage:
