@@ -158,8 +158,13 @@ function FarmDatePicker({
     const current = validDate ?? new Date();
     const trigger = triggerRef.current?.getBoundingClientRect();
     if (trigger) {
+      const popoverHeight = 340;
+      const spaceBelow = window.innerHeight - trigger.bottom;
+      const top = spaceBelow >= popoverHeight + 8
+        ? trigger.bottom + 8
+        : Math.max(16, trigger.top - popoverHeight - 8);
       setPopoverPosition({
-        top: trigger.bottom + 8,
+        top,
         left: Math.max(16, Math.min(trigger.left, window.innerWidth - 456)),
       });
     }
