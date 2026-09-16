@@ -111,16 +111,33 @@ export class FarmsService {
 
   async updateChecklist(id: string, dto: UpdateChecklistDto) {
     await this.findOne(id);
-    const items = [
+    const requestedKeys = [
       ...dto.property.map((documentKey) => ({ documentKey })),
       ...dto.environmental.map((documentKey) => ({ documentKey })),
       ...dto.livestock.map((documentKey) => ({ documentKey })),
     ];
     return this.prisma.$transaction(async (tx) => {
-      await tx.farmChecklistItem.deleteMany({ where: { farmId: id } });
-      if (items.length)
+      const existingItems = await tx.farmChecklistItem.findMany({
+        where: { farmId: id },
+        select: { documentKey: true },
+      });
+      const existingKeys = new Set(
+        existingItems.map((item) => item.documentKey),
+      );
+      const keys = [...new Set(requestedKeys.map((item) => item.documentKey))];
+      if (keys.length) {
+        await tx.farmChecklistItem.deleteMany({
+          where: { farmId: id, documentKey: { notIn: keys } },
+        });
+      } else {
+        await tx.farmChecklistItem.deleteMany({ where: { farmId: id } });
+      }
+      const newItems = keys.filter(
+        (documentKey) => !existingKeys.has(documentKey),
+      );
+      if (newItems.length)
         await tx.farmChecklistItem.createMany({
-          data: items.map((item) => ({ ...item, farmId: id })),
+          data: newItems.map((documentKey) => ({ documentKey, farmId: id })),
         });
       return tx.farm.findUniqueOrThrow({
         where: { id },
