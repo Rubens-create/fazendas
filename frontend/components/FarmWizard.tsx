@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Check, Tractor, Upload, X } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api';
-const checklistGroups = {
+export const checklistGroups = {
   propriedade: [
     ['prop_contrato', 'CONTRATO DE COMPRA E VENDA DO IMÓVEL E/OU ARRENDAMENTO'],
     ['prop_aditivos', 'ADITIVOS / ALTERAÇÃO E CONSOLIDAÇÃO CONTRATUAL'],
@@ -47,6 +47,7 @@ const checklistGroups = {
 } as const;
 
 type Group = keyof typeof checklistGroups;
+export type ChecklistGroup = Group;
 type Props = { token: string; open: boolean; onClose: () => void; onCreated: () => void };
 
 export default function FarmWizard({ token, open, onClose, onCreated }: Props) {
