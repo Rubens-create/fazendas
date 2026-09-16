@@ -110,6 +110,7 @@ h1, h2, h3, h4, h5, h6, .brand-name, .page-title, .login-brand strong, .login-ca
 .farm-information-input { width: 100%; min-width: 150px; min-height: 34px; padding: 7px 8px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text-primary); font: inherit; }
 .farm-information-input:hover, .farm-information-input:focus { border-color: var(--accent-primary); background: var(--bg-card); outline: none; }
 .farm-information-input:disabled { cursor: not-allowed; opacity: .45; }
+.farm-information-table textarea.farm-information-input { min-height: 62px; resize: vertical; line-height: 1.4; white-space: pre-wrap; }
 .farm-date-popper { z-index: 100; }
 .react-datepicker { border: 1px solid var(--border-primary); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-lg); font-family: var(--font-family); }
 .react-datepicker__header { padding-top: 10px; background: var(--bg-input); border-bottom: 1px solid var(--border-primary); }
