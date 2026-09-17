@@ -47,6 +47,7 @@ type Farm = {
   culture: string;
   status: string;
   coverImage?: string | null;
+  relationData?: Record<string, string> | null;
   checklist?: {
     id: string;
     documentKey: string;
@@ -912,6 +913,7 @@ function FarmsPage({ token }: { token: string }) {
           farm={selectedFarm}
           token={token}
           onClose={() => setSelectedFarm(null)}
+          onSaved={(updated) => setFarms((old) => old.map((item) => item.id === updated.id ? { ...item, ...updated } : item))}
         />
       )}
       {wizardOpen && (
@@ -951,16 +953,19 @@ function FarmDetailsModal({
   farm,
   token,
   onClose,
+  onSaved,
 }: {
   farm: Farm;
   token: string;
   onClose: () => void;
+  onSaved: (farm: Farm) => void;
 }) {
   const [activeBlock, setActiveBlock] = useState<
     "documentos" | "maquinas" | "funcionarios" | "relacao" | null
   >(null);
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [informationModalOpen, setInformationModalOpen] = useState(false);
+  const [relationModalOpen, setRelationModalOpen] = useState(false);
   const [hoveredDocumentGroup, setHoveredDocumentGroup] = useState<
     number | null
   >(null);
@@ -1132,7 +1137,7 @@ function FarmDetailsModal({
                 <button
                   className={`farm-overview-block ${activeBlock === "relacao" ? "active" : ""}`}
                   type="button"
-                  onClick={() => setActiveBlock("relacao")}
+                  onClick={() => { setActiveBlock("relacao"); setRelationModalOpen(true); }}
                 >
                   <ClipboardList size={24} />
                   <span>
@@ -1404,29 +1409,7 @@ function FarmDetailsModal({
                 </div>
               )}
               {activeBlock === "relacao" && (
-                <div className="farm-relation-panel">
-                  <div className="farm-relation-grid">
-                    {[
-                      ["MAT", Hash],
-                      ["CIDADE", MapPin],
-                      ["ITR", FileText],
-                      ["CCIR", FileText],
-                      ["CEFIR", ClipboardList],
-                      ["CAR", ClipboardList],
-                      ["TITULAR", UserRound],
-                      ["CPF", CreditCard],
-                      ["AREA", Ruler],
-                    ].map(([label, Icon]) => (
-                      <div className="farm-relation-item" key={label as string}>
-                        <Icon size={17} />
-                        <span>
-                          <strong>{label as string}</strong>
-                          <small>—</small>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                relationModalOpen && <FarmRelationModal farm={farm} token={token} onClose={() => setRelationModalOpen(false)} onSaved={onSaved} />
               )}
             </div>
           </div>
@@ -1434,6 +1417,46 @@ function FarmDetailsModal({
       </div>
     </div>
   );
+}
+
+const relationFields = [
+  ["mat", "MAT", Hash],
+  ["cidade", "CIDADE", MapPin],
+  ["itr", "ITR", FileText],
+  ["ccir", "CCIR", FileText],
+  ["cefir", "CEFIR", ClipboardList],
+  ["car", "CAR", ClipboardList],
+  ["titular", "TITULAR", UserRound],
+  ["cpf", "CPF", CreditCard],
+  ["area", "AREA", Ruler],
+] as const;
+
+function FarmRelationModal({ farm, token, onClose, onSaved }: { farm: Farm; token: string; onClose: () => void; onSaved: (farm: Farm) => void }) {
+  const [values, setValues] = useState<Record<string, string>>(farm.relationData ?? {});
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    const response = await fetch(`${API_URL}/farms/${farm.id}`, { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ relationData: values }) });
+    if (!response.ok) {
+      setError("Não foi possível salvar a relação.");
+      setSaving(false);
+      return;
+    }
+    onSaved(await response.json());
+    setEditingKey(null);
+    setSaving(false);
+  }
+
+  return <div className="nested-document-modal farm-relation-modal">
+    <div className="nested-document-modal-header"><div><strong>RELAÇÃO</strong><span>Dados cadastrais e territoriais da fazenda</span></div><button className="modal-close-btn" onClick={onClose} aria-label="Fechar relação"><X size={18} /></button></div>
+    <div className="farm-relation-edit-grid">{relationFields.map(([key, label, Icon]) => <div className="farm-relation-edit-item" key={key}><Icon size={19} /><label>{label}<input disabled={editingKey !== key} value={values[key] ?? ""} placeholder="—" onChange={event => setValues(old => ({ ...old, [key]: event.target.value }))} /></label><button type="button" className={`input-action-btn ${editingKey === key ? "relation-editing" : ""}`} onClick={() => setEditingKey(editingKey === key ? null : key)} aria-label={`Editar ${label}`} title={`Editar ${label}`}><Pencil size={15} /></button></div>)}</div>
+    {error && <div className="login-error">{error}</div>}
+    <div className="form-actions"><button type="button" className="btn btn-ghost" onClick={onClose}>Fechar</button><button type="button" className="btn btn-primary" onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar Relação"}</button></div>
+  </div>;
 }
 
 function AgendaPage({ token }: { token: string }) {

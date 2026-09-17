@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpdateFarmDto {
   @IsOptional() @IsString() name?: string;
@@ -7,4 +7,5 @@ export class UpdateFarmDto {
   @IsOptional() @IsString() culture?: string;
   @IsOptional() @IsString() status?: string;
   @IsOptional() @IsString() coverImage?: string;
+  @IsOptional() @IsObject() relationData?: Record<string, string>;
 }
