@@ -16,9 +16,12 @@ import {
   ChevronRight,
   ClipboardList,
   Cpu,
+  CreditCard,
   FileText,
   Folder,
+  Hash,
   Info,
+  MapPin,
   Menu,
   Paperclip,
   Pencil,
@@ -29,6 +32,8 @@ import {
   Sprout,
   Tractor,
   Trash2,
+  Ruler,
+  UserRound,
   Users,
   X,
 } from "lucide-react";
@@ -1399,11 +1404,28 @@ function FarmDetailsModal({
                 </div>
               )}
               {activeBlock === "relacao" && (
-                <div className="farm-overview-placeholder">
-                  <strong>RELAÇÃO</strong>
-                  <span>
-                    Detalhes desta área serão definidos na próxima etapa.
-                  </span>
+                <div className="farm-relation-panel">
+                  <div className="farm-relation-grid">
+                    {[
+                      ["MAT", Hash],
+                      ["CIDADE", MapPin],
+                      ["ITR", FileText],
+                      ["CCIR", FileText],
+                      ["CEFIR", ClipboardList],
+                      ["CAR", ClipboardList],
+                      ["TITULAR", UserRound],
+                      ["CPF", CreditCard],
+                      ["AREA", Ruler],
+                    ].map(([label, Icon]) => (
+                      <div className="farm-relation-item" key={label as string}>
+                        <Icon size={17} />
+                        <span>
+                          <strong>{label as string}</strong>
+                          <small>—</small>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
