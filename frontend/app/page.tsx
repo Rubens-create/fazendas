@@ -14,6 +14,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   Cpu,
   FileText,
   Folder,
@@ -951,7 +952,7 @@ function FarmDetailsModal({
   onClose: () => void;
 }) {
   const [activeBlock, setActiveBlock] = useState<
-    "documentos" | "maquinas" | "funcionarios" | null
+    "documentos" | "maquinas" | "funcionarios" | "relacao" | null
   >(null);
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [informationModalOpen, setInformationModalOpen] = useState(false);
@@ -1121,6 +1122,16 @@ function FarmDetailsModal({
                   <Info size={24} />
                   <span>
                     <strong>Informações da Fazenda</strong>
+                  </span>
+                </button>
+                <button
+                  className={`farm-overview-block ${activeBlock === "relacao" ? "active" : ""}`}
+                  type="button"
+                  onClick={() => setActiveBlock("relacao")}
+                >
+                  <ClipboardList size={24} />
+                  <span>
+                    <strong>RELAÇÃO</strong>
                   </span>
                 </button>
               </div>
@@ -1382,6 +1393,14 @@ function FarmDetailsModal({
               {activeBlock === "funcionarios" && (
                 <div className="farm-overview-placeholder">
                   <strong>Funcionários</strong>
+                  <span>
+                    Detalhes desta área serão definidos na próxima etapa.
+                  </span>
+                </div>
+              )}
+              {activeBlock === "relacao" && (
+                <div className="farm-overview-placeholder">
+                  <strong>RELAÇÃO</strong>
                   <span>
                     Detalhes desta área serão definidos na próxima etapa.
                   </span>
