@@ -1440,15 +1440,17 @@ function FarmRelationModal({ farm, token, onClose, onSaved }: { farm: Farm; toke
   async function save() {
     setSaving(true);
     setError("");
-    const response = await fetch(`${API_URL}/farms/${farm.id}`, { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ relationData: values }) });
-    if (!response.ok) {
-      setError("Não foi possível salvar a relação.");
+    try {
+      const response = await fetch(`${API_URL}/farms/${farm.id}`, { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ relationData: values }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message ?? "Não foi possível salvar a relação.");
+      onSaved(data);
+      setEditingKey(null);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Não foi possível salvar a relação.");
+    } finally {
       setSaving(false);
-      return;
     }
-    onSaved(await response.json());
-    setEditingKey(null);
-    setSaving(false);
   }
 
   return <div className="nested-document-modal farm-relation-modal">

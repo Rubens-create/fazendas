@@ -174,7 +174,8 @@ export class FarmsService {
 
   async update(id: string, dto: UpdateFarmDto) {
     await this.findOne(id);
-    const data: Record<string, unknown> = { ...dto };
+    const data: Prisma.FarmUpdateInput = { ...dto };
+    if (dto.relationData !== undefined) data.relationData = dto.relationData;
     if (dto.name) {
       const slug = dto.name
         .normalize('NFD')
