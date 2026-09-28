@@ -89,6 +89,7 @@ h1, h2, h3, h4, h5, h6, .brand-name, .page-title, .login-brand strong, .login-ca
 .farm-relation-edit-item input:not(:disabled) { border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-primary-glow); }
 .farm-relation-edit-item .input-action-btn { flex: 0 0 30px; color: var(--text-tertiary); }
 .farm-relation-edit-item .input-action-btn.relation-editing { color: var(--accent-primary); background: var(--bg-badge); }
+.farm-relation-edit-item .relation-copy-btn.copied { color: var(--accent-primary); background: var(--bg-badge); }
 .nested-document-modal { position: absolute; z-index: 20; inset: 0; width: 100%; max-width: none; max-height: none; overflow: hidden; display: flex; flex-direction: column; transform: none; margin: 0; padding: 24px; border: 0; border-radius: inherit; background: var(--bg-card); box-shadow: none; }
 .nested-document-modal::before { display: none; }
 .nested-document-modal-header > div { display: flex; align-items: center; gap: 10px; }
@@ -109,11 +110,13 @@ h1, h2, h3, h4, h5, h6, .brand-name, .page-title, .login-brand strong, .login-ca
 .document-search-block > button { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-tertiary); }
 .document-search-block > button:hover { background: var(--bg-card); color: var(--text-primary); }
 .farm-checklist-links { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 7px; max-height: none; overflow-y: auto; }
-.farm-checklist-link { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 9px; width: 100%; padding: 10px 11px; text-align: left; color: var(--text-secondary); background: var(--bg-input); border: 1px solid var(--border-primary); border-radius: var(--radius-md); }
+.farm-checklist-link { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; align-items: center; gap: 9px; width: 100%; padding: 10px 11px; text-align: left; color: var(--text-secondary); background: var(--bg-input); border: 1px solid var(--border-primary); border-radius: var(--radius-md); }
 .farm-checklist-link span { text-align: left; }
 .farm-information-table-wrap { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--border-primary); border-radius: var(--radius-md); }
 .farm-information-table { width: 100%; min-width: 1120px; border-collapse: separate; border-spacing: 0; color: var(--text-secondary); font-size: var(--font-size-xs); }
 .farm-information-table th { position: sticky; top: 0; z-index: 1; padding: 12px 10px; text-align: left; white-space: nowrap; background: var(--bg-input); border-bottom: 1px solid var(--border-primary); color: var(--text-primary); font-family: var(--font-family-display); font-size: 11px; }
+.farm-information-table .farm-information-category-row th { position: static; width: auto; padding: 11px 10px; background: var(--bg-card); color: var(--accent-primary); font-size: var(--font-size-sm); }
+.farm-information-table .farm-information-empty td { padding: 16px; color: var(--text-tertiary); text-align: center; }
 .farm-information-table td { min-height: 42px; padding: 11px 10px; vertical-align: top; border-bottom: 1px solid var(--border-primary); }
 .farm-information-table tbody tr:last-child td { border-bottom: 0; }
 .farm-information-table tbody tr:hover td { background: rgba(16,185,129,.045); }
@@ -141,6 +144,14 @@ h1, h2, h3, h4, h5, h6, .brand-name, .page-title, .login-brand strong, .login-ca
 .farm-checklist-link:disabled { opacity: .55; cursor: not-allowed; }
 .farm-checklist-link svg { color: var(--accent-primary); }
 .farm-checklist-arrow { color: var(--accent-primary); font-family: var(--font-family-mono); font-size: 11px; white-space: nowrap; }
+.farm-checklist-link.has-attachment { border-color: rgba(21,128,61,.28); background: rgba(21,128,61,.045); }
+.farm-checklist-link.missing-attachment { border-color: rgba(180,83,9,.24); background: rgba(180,83,9,.035); }
+.farm-checklist-attachment { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.farm-checklist-attachment.attached { color: #166534; background: rgba(22,101,52,.1); }
+.farm-checklist-attachment.not-attached { color: #92400e; background: rgba(146,64,14,.1); }
+.farm-checklist-attachment.not-attached svg { color: inherit; }
+.farm-checklist-link.has-attachment > svg { color: #15803d; }
+.farm-checklist-link.missing-attachment > svg { color: #b45309; }
 .pasta-card { aspect-ratio: 1 / 1; min-height: 0; justify-content: center; position: relative; }
 .pasta-card > button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-md); width: 100%; height: 100%; color: inherit; background: transparent; border: 0; }
 .farm-card-actions { position: absolute; top: 12px; right: 12px; z-index: 2; display: flex; gap: 6px; }

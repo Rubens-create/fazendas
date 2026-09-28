@@ -1,10 +1,10 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import FolderManager from "../components/FolderManager";
 import FarmEditModal from "../components/FarmEditModal";
-import FarmWizard from "../components/FarmWizard";
+import FarmWizard, { checklistGroups } from "../components/FarmWizard";
 import { ChecklistCategoryFieldset } from "./checklist-category-fieldset";
 import { farmDocumentRows } from "./farm-document-rows";
 import {
@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ClipboardList,
   Cpu,
+  Copy,
   CreditCard,
   FileText,
   Folder,
@@ -39,6 +40,7 @@ import {
 } from "lucide-react";
 
 type Tab = "agente-ia" | "fazendas" | "agenda" | "pastas";
+type ChecklistField = "documentDate" | "dueDate" | "renewalComments" | "renewalDate" | "documentStatus";
 type Farm = {
   id: string;
   name: string;
@@ -70,14 +72,18 @@ type Obligation = {
 type Message = { sender: "user" | "ai"; content: string; time: string };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
-const farmDocumentGroups = farmDocumentRows.reduce<
-  { abbreviation: string; rows: typeof farmDocumentRows }[]
->((groups, row) => {
-  if (row.abbreviation || groups.length === 0)
-    groups.push({ abbreviation: row.abbreviation, rows: [] });
-  groups[groups.length - 1].rows.push(row);
-  return groups;
-}, []);
+const farmDocumentCategories = [
+  { title: "DOCUMENTOS DA PROPRIEDADE", checklist: checklistGroups.propriedade },
+  { title: "DOCUMENTOS AMBIENTAIS", checklist: checklistGroups.ambientais },
+  { title: "DOCUMENTOS PECUARIOS - ADAB", checklist: checklistGroups.pecuarios },
+].map(({ title, checklist }) => ({
+  title,
+  rows: checklist.map(([, label]) =>
+    farmDocumentRows.find(
+      (row) => normalizeDocumentName(row.name) === normalizeDocumentName(label),
+    ) ?? { abbreviation: "", name: label },
+  ),
+}));
 const pageMeta: Record<Tab, { title: string; subtitle: string }> = {
   "agente-ia": {
     title: "Agente IA",
@@ -100,6 +106,17 @@ function normalizeDocumentName(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/gi, "")
     .toLowerCase();
+}
+function groupFarmDocumentRows(rows: typeof farmDocumentRows) {
+  return rows.reduce<{ abbreviation: string; rows: typeof farmDocumentRows }[]>(
+    (groups, row) => {
+      if (row.abbreviation || groups.length === 0)
+        groups.push({ abbreviation: row.abbreviation, rows: [] });
+      groups[groups.length - 1].rows.push(row);
+      return groups;
+    },
+    [],
+  );
 }
 function FarmDatePicker({
   value,
@@ -914,6 +931,14 @@ function FarmsPage({ token }: { token: string }) {
           token={token}
           onClose={() => setSelectedFarm(null)}
           onSaved={(updated) => setFarms((old) => old.map((item) => item.id === updated.id ? { ...item, ...updated } : item))}
+          onChecklistFieldSaved={(farmId, itemId, field, value) => {
+            const updateChecklist = (farm: Farm) => farm.id !== farmId ? farm : {
+              ...farm,
+              checklist: (farm.checklist ?? []).map(item => item.id === itemId ? { ...item, [field]: value } : item),
+            };
+            setFarms(old => old.map(updateChecklist));
+            setSelectedFarm(current => current ? updateChecklist(current) : current);
+          }}
         />
       )}
       {wizardOpen && (
@@ -954,11 +979,13 @@ function FarmDetailsModal({
   token,
   onClose,
   onSaved,
+  onChecklistFieldSaved,
 }: {
   farm: Farm;
   token: string;
   onClose: () => void;
   onSaved: (farm: Farm) => void;
+  onChecklistFieldSaved: (farmId: string, itemId: string, field: ChecklistField, value: string | null) => void;
 }) {
   const [activeBlock, setActiveBlock] = useState<
     "documentos" | "maquinas" | "funcionarios" | "relacao" | null
@@ -966,10 +993,9 @@ function FarmDetailsModal({
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [informationModalOpen, setInformationModalOpen] = useState(false);
   const [relationModalOpen, setRelationModalOpen] = useState(false);
-  const [hoveredDocumentGroup, setHoveredDocumentGroup] = useState<
-    number | null
-  >(null);
+  const [hoveredDocumentGroup, setHoveredDocumentGroup] = useState<string | null>(null);
   const [documentSearch, setDocumentSearch] = useState("");
+  const [informationSearch, setInformationSearch] = useState("");
   const [documentFolders, setDocumentFolders] = useState<
     { id: string; name: string; parentFolderId?: string | null }[]
   >([]);
@@ -977,6 +1003,7 @@ function FarmDetailsModal({
     farm.checklist ?? [],
   );
   const checklistUpdateQueues = useRef<Record<string, Promise<void>>>({});
+  const [checklistSaveErrors, setChecklistSaveErrors] = useState<Record<string, string>>({});
   useEffect(() => {
     if (activeBlock !== "documentos") return;
     fetch(`${API_URL}/folders`, {
@@ -995,12 +1022,7 @@ function FarmDetailsModal({
   }, [activeBlock, farm.id, token]);
   async function updateChecklistField(
     itemId: string,
-    field:
-      | "documentDate"
-      | "dueDate"
-      | "renewalComments"
-      | "renewalDate"
-      | "documentStatus",
+    field: ChecklistField,
     value: string,
   ) {
     setEditableChecklist((items) =>
@@ -1025,10 +1047,21 @@ function FarmDetailsModal({
         );
         if (!response.ok)
           throw new Error("Não foi possível salvar a informação do documento.");
+        onChecklistFieldSaved(farm.id, itemId, field, value || null);
+        setChecklistSaveErrors(old => {
+          const next = { ...old };
+          delete next[`${itemId}:${field}`];
+          return next;
+        });
       });
     checklistUpdateQueues.current[itemId] = update;
     try {
       await update;
+    } catch (error) {
+      setChecklistSaveErrors(old => ({
+        ...old,
+        [`${itemId}:${field}`]: error instanceof Error ? error.message : "Não foi possível salvar a informação do documento.",
+      }));
     } finally {
       if (checklistUpdateQueues.current[itemId] === update)
         delete checklistUpdateQueues.current[itemId];
@@ -1187,6 +1220,7 @@ function FarmDetailsModal({
                         title="DOCUMENTOS DA PROPRIEDADE"
                         prefix="prop_"
                         farm={farm}
+                        documents={farm.documents}
                         folders={documentFolders}
                         search={documentSearch}
                       />
@@ -1194,6 +1228,7 @@ function FarmDetailsModal({
                         title="DOCUMENTOS AMBIENTAIS"
                         prefix="amb_"
                         farm={farm}
+                        documents={farm.documents}
                         folders={documentFolders}
                         search={documentSearch}
                       />
@@ -1201,6 +1236,7 @@ function FarmDetailsModal({
                         title="DOCUMENTOS PECUARIOS - ADAB"
                         prefix="pec_"
                         farm={farm}
+                        documents={farm.documents}
                         folders={documentFolders}
                         search={documentSearch}
                       />
@@ -1263,6 +1299,25 @@ function FarmDetailsModal({
                       <X size={18} />
                     </button>
                   </div>
+                  <div className="document-search-block farm-information-search">
+                    <Search size={18} />
+                    <input
+                      value={informationSearch}
+                      onChange={(event) => setInformationSearch(event.target.value)}
+                      placeholder="Buscar documento..."
+                      aria-label="Buscar documentos da fazenda"
+                    />
+                    {informationSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setInformationSearch("")}
+                        aria-label="Limpar busca"
+                        title="Limpar busca"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
                   <div className="farm-information-table-wrap">
                     <table className="farm-information-table">
                       <thead>
@@ -1277,119 +1332,104 @@ function FarmDetailsModal({
                         </tr>
                       </thead>
                       <tbody>
-                        {farmDocumentGroups.map((group, groupIndex) =>
-                          group.rows.map((row, rowIndex) => {
-                            const item = editableChecklist.find(
-                              (candidate) =>
-                                normalizeDocumentName(
-                                  candidate.label ?? candidate.documentKey,
-                                ) === normalizeDocumentName(row.name),
-                            );
-                            return (
-                              <tr
-                                key={`${groupIndex}-${row.name}`}
-                                onMouseEnter={() =>
-                                  setHoveredDocumentGroup(groupIndex)
-                                }
-                                onMouseLeave={() =>
-                                  setHoveredDocumentGroup(null)
-                                }
-                              >
-                                {rowIndex === 0 && (
-                                  <td
-                                    className={`farm-information-abbreviation ${hoveredDocumentGroup === groupIndex ? "hovered" : ""}`}
-                                    rowSpan={group.rows.length}
-                                  >
-                                    {group.abbreviation}
-                                  </td>
-                                )}
-                                <td className="farm-information-name">
-                                  <span
-                                    className={`farm-information-connector ${rowIndex === group.rows.length - 1 ? "last" : ""}`}
-                                  />
-                                  {row.name}
-                                </td>
-                                <td>
-                                  <FarmDatePicker
-                                    disabled={!item}
-                                    value={item?.documentDate}
-                                    onChange={(value) =>
-                                      item &&
-                                      updateChecklistField(
-                                        item.id,
-                                        "documentDate",
-                                        value,
-                                      )
-                                    }
-                                  />
-                                </td>
-                                <td>
-                                  <FarmDatePicker
-                                    disabled={!item}
-                                    value={item?.dueDate}
-                                    onChange={(value) =>
-                                      item &&
-                                      updateChecklistField(
-                                        item.id,
-                                        "dueDate",
-                                        value,
-                                      )
-                                    }
-                                  />
-                                </td>
-                                <td>
-                                  <textarea
-                                    className="farm-information-input"
-                                    rows={3}
-                                    disabled={!item}
-                                    value={item?.renewalComments ?? ""}
-                                    onChange={(event) =>
-                                      item &&
-                                      updateChecklistField(
-                                        item.id,
-                                        "renewalComments",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </td>
-                                <td>
-                                  <FarmDatePicker
-                                    disabled={!item}
-                                    value={item?.renewalDate}
-                                    onChange={(value) =>
-                                      item &&
-                                      updateChecklistField(
-                                        item.id,
-                                        "renewalDate",
-                                        value,
-                                      )
-                                    }
-                                  />
-                                </td>
-                                <td>
-                                  <textarea
-                                    className="farm-information-input"
-                                    rows={2}
-                                    disabled={!item}
-                                    value={item?.documentStatus ?? ""}
-                                    onChange={(event) =>
-                                      item &&
-                                      updateChecklistField(
-                                        item.id,
-                                        "documentStatus",
-                                        event.target.value,
-                                      )
-                                    }
-                                  />
-                                </td>
+                        {farmDocumentCategories.map((category) => {
+                          const searchTerm = normalizeDocumentName(informationSearch);
+                          const groups = groupFarmDocumentRows(category.rows)
+                            .map((group) => ({
+                              ...group,
+                              rows: group.rows.filter(
+                                (row) =>
+                                  !searchTerm ||
+                                  normalizeDocumentName(`${group.abbreviation} ${row.name}`).includes(searchTerm),
+                              ),
+                            }))
+                            .filter((group) => group.rows.length > 0);
+                          return (
+                            <Fragment key={category.title}>
+                              <tr className="farm-information-category-row">
+                                <th colSpan={7} scope="colgroup">{category.title}</th>
                               </tr>
-                            );
-                          }),
-                        )}
+                              {groups.length === 0 ? (
+                                <tr className="farm-information-empty">
+                                  <td colSpan={7}>Nenhum documento encontrado nesta categoria.</td>
+                                </tr>
+                              ) : (
+                                groups.map((group, groupIndex) => {
+                                  const groupKey = `${category.title}-${groupIndex}-${group.abbreviation}`;
+                                  return group.rows.map((row, rowIndex) => {
+                                    const item = editableChecklist.find(
+                                      (candidate) =>
+                                        normalizeDocumentName(candidate.label ?? candidate.documentKey) === normalizeDocumentName(row.name),
+                                    );
+                                    return (
+                                      <tr
+                                        key={`${groupKey}-${row.name}`}
+                                        onMouseEnter={() => setHoveredDocumentGroup(groupKey)}
+                                        onMouseLeave={() => setHoveredDocumentGroup(null)}
+                                      >
+                                        {rowIndex === 0 && (
+                                          <td
+                                            className={`farm-information-abbreviation ${hoveredDocumentGroup === groupKey ? "hovered" : ""}`}
+                                            rowSpan={group.rows.length}
+                                          >
+                                            {group.abbreviation}
+                                          </td>
+                                        )}
+                                        <td className="farm-information-name">
+                                          <span className={`farm-information-connector ${rowIndex === group.rows.length - 1 ? "last" : ""}`} />
+                                          {row.name}
+                                        </td>
+                                        <td>
+                                          <FarmDatePicker
+                                            disabled={!item}
+                                            value={item?.documentDate}
+                                            onChange={(value) => item && updateChecklistField(item.id, "documentDate", value)}
+                                          />
+                                        </td>
+                                        <td>
+                                          <FarmDatePicker
+                                            disabled={!item}
+                                            value={item?.dueDate}
+                                            onChange={(value) => item && updateChecklistField(item.id, "dueDate", value)}
+                                          />
+                                        </td>
+                                        <td>
+                                          <textarea
+                                            className="farm-information-input"
+                                            rows={3}
+                                            disabled={!item}
+                                            value={item?.renewalComments ?? ""}
+                                            onChange={(event) => item && updateChecklistField(item.id, "renewalComments", event.target.value)}
+                                          />
+                                        </td>
+                                        <td>
+                                          <FarmDatePicker
+                                            disabled={!item}
+                                            value={item?.renewalDate}
+                                            onChange={(value) => item && updateChecklistField(item.id, "renewalDate", value)}
+                                          />
+                                        </td>
+                                        <td>
+                                          <textarea
+                                            className="farm-information-input"
+                                            rows={2}
+                                            disabled={!item}
+                                            value={item?.documentStatus ?? ""}
+                                            onChange={(event) => item && updateChecklistField(item.id, "documentStatus", event.target.value)}
+                                          />
+                                        </td>
+                                      </tr>
+                                    );
+                                  });
+                                })
+                              )}
+                            </Fragment>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
+                  {Object.keys(checklistSaveErrors).length > 0 && <div className="login-error">Não foi possível salvar uma ou mais informações. Os valores continuam na tela; revise a conexão e tente novamente.</div>}
                 </div>
               )}
               {activeBlock === "maquinas" && (
@@ -1434,8 +1474,22 @@ const relationFields = [
 function FarmRelationModal({ farm, token, onClose, onSaved }: { farm: Farm; token: string; onClose: () => void; onSaved: (farm: Farm) => void }) {
   const [values, setValues] = useState<Record<string, string>>(farm.relationData ?? {});
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  async function copyValue(key: string) {
+    const value = values[key];
+    if (!value?.trim()) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setError("");
+      setCopiedKey(key);
+      window.setTimeout(() => setCopiedKey(current => current === key ? null : current), 1500);
+    } catch {
+      setError("Não foi possível copiar o valor.");
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -1455,7 +1509,7 @@ function FarmRelationModal({ farm, token, onClose, onSaved }: { farm: Farm; toke
 
   return <div className="nested-document-modal farm-relation-modal">
     <div className="nested-document-modal-header"><div><strong>RELAÇÃO</strong><span>Dados cadastrais e territoriais da fazenda</span></div><button className="modal-close-btn" onClick={onClose} aria-label="Fechar relação"><X size={18} /></button></div>
-    <div className="farm-relation-edit-grid">{relationFields.map(([key, label, Icon]) => <div className="farm-relation-edit-item" key={key}><Icon size={19} /><label>{label}<input disabled={editingKey !== key} value={values[key] ?? ""} placeholder="—" onChange={event => setValues(old => ({ ...old, [key]: event.target.value }))} /></label><button type="button" className={`input-action-btn ${editingKey === key ? "relation-editing" : ""}`} onClick={() => setEditingKey(editingKey === key ? null : key)} aria-label={`Editar ${label}`} title={`Editar ${label}`}><Pencil size={15} /></button></div>)}</div>
+    <div className="farm-relation-edit-grid">{relationFields.map(([key, label, Icon]) => <div className="farm-relation-edit-item" key={key}><Icon size={19} /><label>{label}<input disabled={editingKey !== key} value={values[key] ?? ""} placeholder="—" onChange={event => setValues(old => ({ ...old, [key]: event.target.value }))} /></label>{values[key]?.trim() && <button type="button" className={`input-action-btn relation-copy-btn ${copiedKey === key ? "copied" : ""}`} onClick={() => void copyValue(key)} aria-label={`Copiar ${label}`} title={copiedKey === key ? "Copiado" : `Copiar ${label}`} >{copiedKey === key ? <Check size={15} /> : <Copy size={15} />}</button>}<button type="button" className={`input-action-btn ${editingKey === key ? "relation-editing" : ""}`} onClick={() => setEditingKey(editingKey === key ? null : key)} aria-label={`Editar ${label}`} title={`Editar ${label}`}><Pencil size={15} /></button></div>)}</div>
     {error && <div className="login-error">{error}</div>}
     <div className="form-actions"><button type="button" className="btn btn-ghost" onClick={onClose}>Fechar</button><button type="button" className="btn btn-primary" onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar Relação"}</button></div>
   </div>;
