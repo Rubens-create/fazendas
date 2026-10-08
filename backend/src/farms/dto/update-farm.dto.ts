@@ -6,6 +6,5 @@ export class UpdateFarmDto {
   @IsOptional() @IsNumber() @Min(0) areaHectares?: number;
   @IsOptional() @IsString() culture?: string;
   @IsOptional() @IsString() status?: string;
-  @IsOptional() @IsString() coverImage?: string;
   @IsOptional() @IsObject() relationData?: Record<string, string>;
 }

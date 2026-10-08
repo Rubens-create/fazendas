@@ -5,16 +5,24 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
+import { createReadStream, promises as fs } from 'node:fs';
+import { join } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFarmDto } from './dto/create-farm.dto';
 import { UpdateChecklistDto } from './dto/update-checklist.dto';
 import { UpdateChecklistItemDto } from './dto/update-checklist-item.dto';
 import { UpdateFarmDto } from './dto/update-farm.dto';
 import { checklistLabel } from './checklist-labels';
+import { detectCoverImageType, isManagedFarmCoverPath } from './cover-storage';
 
 @Injectable()
 export class FarmsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly storageRoot: string;
+
+  constructor(private readonly prisma: PrismaService) {
+    this.storageRoot = process.env.STORAGE_ROOT ?? './storage';
+  }
 
   async findAll() {
     const farms = await this.prisma.farm.findMany({
@@ -57,7 +65,6 @@ export class FarmsService {
           areaHectares: dto.areaHectares,
           culture: dto.culture,
           status: dto.status,
-          coverImage: dto.coverImage,
           checklist: { create: checklist },
         },
       });
@@ -172,6 +179,63 @@ export class FarmsService {
     });
   }
 
+  async uploadCover(id: string, file: Express.Multer.File) {
+    const imageType = detectCoverImageType(file.buffer);
+    if (!imageType)
+      throw new BadRequestException('A imagem precisa ser PNG, JPEG ou WebP.');
+
+    const farm = await this.prisma.farm.findUnique({
+      where: { id },
+      select: { id: true, coverImage: true },
+    });
+    if (!farm) throw new NotFoundException('Fazenda não encontrada.');
+
+    const directory = join(this.storageRoot, 'farm-covers');
+    await fs.mkdir(directory, { recursive: true });
+    const storagePath = `farm-covers/${id}-${randomUUID()}.${imageType.extension}`;
+    const absolutePath = join(this.storageRoot, storagePath);
+    await fs.writeFile(absolutePath, file.buffer, { flag: 'wx' });
+
+    try {
+      const updated = await this.prisma.farm.update({
+        where: { id },
+        data: { coverImage: storagePath },
+        include: { checklist: true, documents: true },
+      });
+      if (isManagedFarmCoverPath(farm.coverImage)) {
+        await fs.rm(join(this.storageRoot, farm.coverImage), { force: true }).catch(() => undefined);
+      }
+      return updated;
+    } catch (error) {
+      await fs.rm(absolutePath, { force: true });
+      throw error;
+    }
+  }
+
+  async coverFile(id: string) {
+    const farm = await this.prisma.farm.findUnique({
+      where: { id },
+      select: { coverImage: true },
+    });
+    if (!farm) throw new NotFoundException('Fazenda não encontrada.');
+    if (!isManagedFarmCoverPath(farm.coverImage))
+      throw new NotFoundException('Imagem de capa não encontrada.');
+
+    const extension = farm.coverImage.slice(farm.coverImage.lastIndexOf('.') + 1);
+    const mimeType = extension === 'jpg'
+      ? 'image/jpeg'
+      : extension === 'png'
+        ? 'image/png'
+        : 'image/webp';
+    const filePath = join(this.storageRoot, farm.coverImage);
+    try {
+      await fs.access(filePath);
+    } catch {
+      throw new NotFoundException('Arquivo da imagem de capa não encontrado.');
+    }
+    return { stream: createReadStream(filePath), mimeType };
+  }
+
   async update(id: string, dto: UpdateFarmDto) {
     await this.findOne(id);
     const data: Prisma.FarmUpdateInput = { ...dto };
@@ -198,8 +262,11 @@ export class FarmsService {
   }
 
   async remove(id: string) {
-    await this.findOne(id);
+    const farm = await this.findOne(id);
     await this.prisma.farm.delete({ where: { id } });
+    if (isManagedFarmCoverPath(farm.coverImage)) {
+      await fs.rm(join(this.storageRoot, farm.coverImage), { force: true }).catch(() => undefined);
+    }
     return { deleted: true };
   }
   async checklist(id: string) {
