@@ -20,8 +20,7 @@ services:
       start_period: 10s
 
   backend:
-    build:
-      context: ./backend
+    image: ghcr.io/${GHCR_OWNER:?Defina GHCR_OWNER}/fazendas-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     init: true
     command: ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/migrate-farm-covers.ts && node dist/src/main.js"]
@@ -64,10 +63,7 @@ services:
       traefik.http.services.agroclaw-api.loadbalancer.server.port: "3001"
 
   frontend:
-    build:
-      context: ./frontend
-      args:
-        NEXT_PUBLIC_API_URL: /api
+    image: ghcr.io/${GHCR_OWNER:?Defina GHCR_OWNER}/fazendas-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
     init: true
     expose:
