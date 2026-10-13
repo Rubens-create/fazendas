@@ -39,7 +39,10 @@ jobs:
           SERVICE: ${{ matrix.service }}
         run: |
           if [ "$SERVICE" = "frontend" ]; then
-            echo "build_args=NEXT_PUBLIC_API_URL=/api" >> "$GITHUB_OUTPUT"
+            echo "build_args<<EOF" >> "$GITHUB_OUTPUT"
+            echo "NEXT_PUBLIC_API_URL=/api" >> "$GITHUB_OUTPUT"
+            echo "INTERNAL_API_URL=http://backend:3001/api" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
           else
             echo "build_args=" >> "$GITHUB_OUTPUT"
           fi

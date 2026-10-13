@@ -1,6 +1,5 @@
-# Coolify Compose deployment. Configure both public routes in Coolify's Domains panel.
-# Frontend: https://<your-domain> -> service frontend, port 3000, path /
-# API:      https://<your-domain>/api -> service backend, port 3001, path /api
+# Configure only the frontend domain in Coolify: service frontend, port 3000, path /.
+# Do not assign a public /api domain to backend. Next.js proxies /api over the Compose network.
 # Coolify generates SERVICE_PASSWORD_64_POSTGRES and SERVICE_HEX_64_JWT.
 # This feature-branch tag exists in GHCR; switch IMAGE_TAG to latest after merging to main.
 services:
@@ -56,6 +55,8 @@ services:
     pull_policy: always
     restart: unless-stopped
     init: true
+    environment:
+      INTERNAL_API_URL: http://backend:3001/api
     expose:
       - "3000"
     depends_on:
