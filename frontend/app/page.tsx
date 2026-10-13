@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { Fragment, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import FolderManager from "../components/FolderManager";
 import FarmEditModal from "../components/FarmEditModal";
-import FarmWizard, { checklistGroups } from "../components/FarmWizard";
+import FarmCoverImage from "../components/FarmCoverImage";
+import FarmWizard, { checklistGroups, formatAreaHectares, parseAreaHectares } from "../components/FarmWizard";
 import { ChecklistCategoryFieldset } from "./checklist-category-fieldset";
 import { farmDocumentRows } from "./farm-document-rows";
 import {
@@ -14,6 +14,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   ClipboardList,
   Cpu,
   Copy,
@@ -22,6 +23,7 @@ import {
   Folder,
   Hash,
   Info,
+  LayoutDashboard,
   MapPin,
   Menu,
   Paperclip,
@@ -34,12 +36,13 @@ import {
   Tractor,
   Trash2,
   Ruler,
+  RefreshCw,
   UserRound,
   Users,
   X,
 } from "lucide-react";
 
-type Tab = "agente-ia" | "fazendas" | "agenda" | "pastas";
+type Tab = "dashboard" | "agente-ia" | "fazendas" | "agenda" | "pastas";
 type ChecklistField = "documentDate" | "dueDate" | "renewalComments" | "renewalDate" | "documentStatus";
 type Farm = {
   id: string;
@@ -85,6 +88,7 @@ const farmDocumentCategories = [
   ),
 }));
 const pageMeta: Record<Tab, { title: string; subtitle: string }> = {
+  dashboard: { title: "Dashboard", subtitle: "" },
   "agente-ia": {
     title: "Agente IA",
     subtitle: "Converse com seu assistente agronômico",
@@ -99,6 +103,34 @@ const pageMeta: Record<Tab, { title: string; subtitle: string }> = {
 
 function formatDate(value: string) {
   return new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR");
+}
+function farmDocumentMetrics(farm: Farm) {
+  const checklist = farm.checklist ?? [];
+  const attachedKeys = new Set(
+    (farm.documents ?? [])
+      .map((document) => document.checklistDocumentKey)
+      .filter((key): key is string => Boolean(key)),
+  );
+  const daysUntil = (value?: string | null) => {
+    if (!value) return null;
+    const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+    if (!year || !month || !day) return null;
+    const due = new Date(Date.UTC(year, month - 1, day));
+    if (due.getUTCFullYear() !== year || due.getUTCMonth() !== month - 1 || due.getUTCDate() !== day) return null;
+    const today = new Date();
+    const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    return Math.floor((due.getTime() - todayUtc) / 86_400_000);
+  };
+  const dueWithin = (days: number) =>
+    checklist.filter((item) => {
+      const remaining = daysUntil(item.dueDate);
+      return remaining !== null && remaining >= 0 && remaining <= days;
+    }).length;
+  return {
+    pending: checklist.filter((item) => !attachedKeys.has(item.documentKey)).length,
+    dueIn90Days: dueWithin(90),
+    dueIn30Days: dueWithin(30),
+  };
 }
 function normalizeDocumentName(value: string) {
   return value
@@ -309,17 +341,8 @@ function FarmDatePicker({
     </div>
   );
 }
-function coverFor(farm: Farm) {
-  return farm.coverImage?.startsWith("data:image/") ||
-    farm.coverImage?.startsWith("/")
-    ? farm.coverImage
-    : farm.coverImage?.startsWith("fazenda_")
-      ? `/${farm.coverImage}`
-      : "/fazenda_sol_nascente.png";
-}
-
 export default function Home({
-  initialTab = "agente-ia",
+  initialTab = "dashboard",
 }: {
   initialTab?: Tab;
 }) {
@@ -329,8 +352,26 @@ export default function Home({
   const [loginError, setLoginError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
 
-  useEffect(() => setToken(window.localStorage.getItem("agroclaw_token")), []);
+  useEffect(() => {
+    const savedToken = window.localStorage.getItem("agroclaw_token");
+    setToken(savedToken);
+    if (savedToken) {
+      setAuthReady(true);
+      return;
+    }
+    fetch(`${API_URL}/auth/setup-status`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Não foi possível verificar a configuração inicial.");
+        const data = await response.json();
+        setSetupRequired(data.needsSetup === true);
+      })
+      .catch((error) => setLoginError(error instanceof Error ? error.message : "Não foi possível verificar a configuração inicial."))
+      .finally(() => setAuthReady(true));
+  }, []);
   useEffect(() => {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (...args) => {
@@ -360,6 +401,7 @@ export default function Home({
       const data = await response.json();
       window.localStorage.setItem("agroclaw_token", data.accessToken);
       setToken(data.accessToken);
+      setSetupRequired(false);
     } catch (error) {
       setLoginError(
         error instanceof Error ? error.message : "Não foi possível entrar.",
@@ -369,6 +411,37 @@ export default function Home({
     }
   }
 
+  async function setup(event: FormEvent) {
+    event.preventDefault();
+    if (password !== confirmPassword) {
+      setLoginError("As senhas não coincidem.");
+      return;
+    }
+    setLoginLoading(true);
+    setLoginError("");
+    try {
+      const response = await fetch(`${API_URL}/auth/setup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 409) setSetupRequired(false);
+        throw new Error(Array.isArray(data.message) ? data.message.join(", ") : data.message ?? "Não foi possível criar o usuário administrador.");
+      }
+      window.localStorage.setItem("agroclaw_token", data.accessToken);
+      setSetupRequired(false);
+      setToken(data.accessToken);
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : "Não foi possível criar o usuário administrador.");
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+
+  if (!authReady)
+    return <div className="app-loading">Verificando configuração...</div>;
   if (token === null)
     return (
       <LoginPage
@@ -376,9 +449,13 @@ export default function Home({
         password={password}
         setEmail={setEmail}
         setPassword={setPassword}
+        confirmPassword={confirmPassword}
+        setConfirmPassword={setConfirmPassword}
+        setupRequired={setupRequired}
         error={loginError}
         loading={loginLoading}
         onSubmit={login}
+        onSetup={setup}
       />
     );
   return (
@@ -399,9 +476,13 @@ function LoginPage(props: {
   password: string;
   setEmail: (v: string) => void;
   setPassword: (v: string) => void;
+  confirmPassword: string;
+  setConfirmPassword: (v: string) => void;
+  setupRequired: boolean;
   error: string;
   loading: boolean;
   onSubmit: (e: FormEvent) => void;
+  onSetup: (e: FormEvent) => void;
 }) {
   return (
     <main className="login-page">
@@ -415,13 +496,14 @@ function LoginPage(props: {
             <span>Farm Manager</span>
           </div>
         </div>
-        <h1>Acessar sistema</h1>
-        <p>Entre com o usuário administrador para continuar.</p>
-        <form className="login-form" onSubmit={props.onSubmit}>
+        <h1>{props.setupRequired ? "Criar primeiro usuário" : "Acessar sistema"}</h1>
+        <p>{props.setupRequired ? "Não há usuários cadastrados. Crie a primeira conta administradora." : "Entre com o usuário administrador para continuar."}</p>
+        <form className="login-form" onSubmit={props.setupRequired ? props.onSetup : props.onSubmit}>
           <label>
             E-mail
             <input
               type="email"
+              autoComplete="username"
               value={props.email}
               onChange={(e) => props.setEmail(e.target.value)}
               required
@@ -431,14 +513,17 @@ function LoginPage(props: {
             Senha
             <input
               type="password"
+              autoComplete={props.setupRequired ? "new-password" : "current-password"}
+              minLength={props.setupRequired ? 8 : undefined}
               value={props.password}
               onChange={(e) => props.setPassword(e.target.value)}
               required
             />
           </label>
+          {props.setupRequired && <label>Confirmar senha<input type="password" autoComplete="new-password" minLength={8} value={props.confirmPassword} onChange={(e) => props.setConfirmPassword(e.target.value)} required /></label>}
           {props.error && <div className="login-error">{props.error}</div>}
           <button type="submit" disabled={props.loading}>
-            {props.loading ? "Entrando..." : "Entrar"}
+            {props.loading ? "Salvando..." : props.setupRequired ? "Criar usuário administrador" : "Entrar"}
           </button>
         </form>
       </section>
@@ -479,6 +564,15 @@ function Dashboard({
         </div>
         <nav className="sidebar-nav">
           <div className="sidebar-section-label">Principal</div>
+          <NavItem
+            icon={<LayoutDashboard />}
+            label="Dashboard"
+            active={tab === "dashboard"}
+            onClick={() => {
+              setTab("dashboard");
+              setMobileOpen(false);
+            }}
+          />
           <NavItem
             icon={<Bot />}
             label="Agente IA"
@@ -549,11 +643,6 @@ function Dashboard({
             <span className="page-subtitle">{meta.subtitle}</span>
           </div>
           <div className="header-right">
-            <div className="header-search">
-              <Search size={16} />
-              <input placeholder="Buscar..." />
-              <span className="search-shortcut">Ctrl+K</span>
-            </div>
             <button className="header-btn" aria-label="Notificações">
               <Bell size={18} />
               <span className="notification-dot" />
@@ -591,6 +680,7 @@ function NavItem({
 }
 
 function TabContent({ tab, token }: { tab: Tab; token: string }) {
+  if (tab === "dashboard") return null;
   if (tab === "fazendas") return <FarmsPage token={token} />;
   if (tab === "agenda") return <AgendaPage token={token} />;
   if (tab === "pastas") return <FoldersPage token={token} />;
@@ -816,6 +906,7 @@ function FarmsPage({ token }: { token: string }) {
   const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
   const [editingFarm, setEditingFarm] = useState<Farm | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [farmSearch, setFarmSearch] = useState("");
   useEffect(() => {
     fetch(`${API_URL}/farms`, { headers: { Authorization: `Bearer ${token}` } })
       .then(async (r) => {
@@ -829,6 +920,14 @@ function FarmsPage({ token }: { token: string }) {
     () => farms.reduce((sum, farm) => sum + Number(farm.areaHectares), 0),
     [farms],
   );
+  const filteredFarms = useMemo(() => {
+    const query = normalizeDocumentName(farmSearch);
+    return query
+      ? farms.filter((farm) =>
+          normalizeDocumentName(`${farm.name} ${farm.location}`).includes(query),
+        )
+      : farms;
+  }, [farms, farmSearch]);
   async function deleteFarm(farm: Farm) {
     if (!window.confirm(`Deseja excluir a fazenda "${farm.name}"?`)) return;
     const response = await fetch(`${API_URL}/farms/${farm.id}`, {
@@ -851,26 +950,40 @@ function FarmsPage({ token }: { token: string }) {
             <Plus size={16} /> Nova Fazenda
           </button>
         </div>
-        <div className="fazendas-stats">
-          <div className="stat-item">
-            <span className="stat-value">{farms.length}</span>
-            <span className="stat-label">Fazendas</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-value">
-              {hectares.toLocaleString("pt-BR")}
-            </span>
-            <span className="stat-label">Hectares</span>
+        <div className="fazendas-summary">
+          <label className="fazendas-search">
+            <Search size={16} aria-hidden="true" />
+            <input
+              type="search"
+              value={farmSearch}
+              onChange={(event) => setFarmSearch(event.target.value)}
+              placeholder="Buscar fazendas..."
+              aria-label="Buscar fazendas por nome ou localização"
+            />
+          </label>
+          <div className="fazendas-stats">
+            <div className="stat-item">
+              <span className="stat-value">{farms.length}</span>
+              <span className="stat-label">Fazendas</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-value">
+                {hectares.toLocaleString("pt-BR")}
+              </span>
+              <span className="stat-label">Hectares</span>
+            </div>
           </div>
         </div>
       </div>
       {error && <div className="login-error">{error}</div>}
       <div className="fazendas-grid">
-        {farms.map((farm) => (
+        {filteredFarms.map((farm) => (
           <div className="fazenda-card" key={farm.id}>
             <div className="fazenda-cover">
-              <Image
-                src={coverFor(farm)}
+              <FarmCoverImage
+                farmId={farm.id}
+                token={token}
+                coverImage={farm.coverImage}
                 alt={farm.name}
                 width={640}
                 height={280}
@@ -893,44 +1006,55 @@ function FarmsPage({ token }: { token: string }) {
               </div>
             </div>
             <div className="fazenda-body">
-              <h3 className="fazenda-name">{farm.name}</h3>
-              <div className="fazenda-location">
-                <Search size={12} /> {farm.location}
-              </div>
-              <div className="fazenda-metrics">
-                <div className="metric">
-                  <div className="metric-value">{farm.areaHectares}ha</div>
-                  <div className="metric-label">Área</div>
-                </div>
-                <div className="metric">
-                  <div className="metric-value">{farm.culture}</div>
-                  <div className="metric-label">Cultura</div>
-                </div>
-                <div className="metric">
-                  <div className="metric-value">
-                    {farm.checklist?.length ?? 0}
-                  </div>
-                  <div className="metric-label">Documentos</div>
-                </div>
-              </div>
-              <div className="fazenda-actions">
-                <button
-                  className="btn btn-primary"
-                  onClick={() => setSelectedFarm(farm)}
-                >
-                  Ver Detalhes
-                </button>
-              </div>
+              {(() => {
+                const metrics = farmDocumentMetrics(farm);
+                return (
+                  <>
+                    <h3 className="fazenda-name">{farm.name}</h3>
+                    <div className="fazenda-location">
+                      <MapPin size={12} /> {farm.location}
+                    </div>
+                    <div className="fazenda-metrics">
+                      <div className="metric">
+                        <div className={`metric-value ${metrics.pending > 0 ? "metric-alert" : ""}`}>{metrics.pending}</div>
+                        <div className="metric-label" title="Documentos pendentes">Documentos pendentes</div>
+                      </div>
+                      <div className="metric">
+                        <div className={`metric-value ${metrics.dueIn90Days > 0 ? "metric-alert" : ""}`}>{metrics.dueIn90Days}</div>
+                        <div className="metric-label" title="A vencer em 90 dias">A vencer 90 dias</div>
+                      </div>
+                      <div className="metric">
+                        <div className={`metric-value ${metrics.dueIn30Days > 0 ? "metric-alert" : ""}`}>{metrics.dueIn30Days}</div>
+                        <div className="metric-label" title="A vencer em 30 dias">A vencer 30 dias</div>
+                      </div>
+                    </div>
+                    <div className="fazenda-actions">
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => setSelectedFarm(farm)}
+                      >
+                        Ver Detalhes
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         ))}
+        {farmSearch.trim() && filteredFarms.length === 0 && (
+          <div className="fazendas-empty-search">Nenhuma fazenda encontrada.</div>
+        )}
       </div>
       {selectedFarm && (
         <FarmDetailsModal
           farm={selectedFarm}
           token={token}
           onClose={() => setSelectedFarm(null)}
-          onSaved={(updated) => setFarms((old) => old.map((item) => item.id === updated.id ? { ...item, ...updated } : item))}
+          onSaved={(updated) => {
+            setFarms(old => old.map(item => item.id === updated.id ? { ...item, ...updated } : item));
+            setSelectedFarm(current => current?.id === updated.id ? { ...current, ...updated } : current);
+          }}
           onChecklistFieldSaved={(farmId, itemId, field, value) => {
             const updateChecklist = (farm: Farm) => farm.id !== farmId ? farm : {
               ...farm,
@@ -946,8 +1070,9 @@ function FarmsPage({ token }: { token: string }) {
           token={token}
           open={wizardOpen}
           onClose={() => setWizardOpen(false)}
-          onCreated={async () => {
+          onCreated={async (warning) => {
             setWizardOpen(false);
+            setError(warning ?? "");
             const response = await fetch(`${API_URL}/farms`, {
               headers: { Authorization: `Bearer ${token}` },
             });
@@ -988,7 +1113,7 @@ function FarmDetailsModal({
   onChecklistFieldSaved: (farmId: string, itemId: string, field: ChecklistField, value: string | null) => void;
 }) {
   const [activeBlock, setActiveBlock] = useState<
-    "documentos" | "maquinas" | "funcionarios" | "relacao" | null
+    "documentos" | "maquinas" | "funcionarios" | "protocolos" | "renovacoes" | "relacao" | null
   >(null);
   const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [informationModalOpen, setInformationModalOpen] = useState(false);
@@ -1089,8 +1214,10 @@ function FarmDetailsModal({
           <div className="modal-grid">
             <div>
               <div className="modal-cover-img">
-                <Image
-                  src={coverFor(farm)}
+                <FarmCoverImage
+                  farmId={farm.id}
+                  token={token}
+                  coverImage={farm.coverImage}
                   alt={farm.name}
                   width={640}
                   height={280}
@@ -1103,7 +1230,7 @@ function FarmDetailsModal({
                 </div>
                 <div className="modal-meta-item">
                   <span className="meta-label">Área Total</span>
-                  <span className="meta-value">{farm.areaHectares} ha</span>
+                  <span className="meta-value">{formatAreaHectares(farm.areaHectares)} ha</span>
                 </div>
                 <div className="modal-meta-item">
                   <span className="meta-label">Cultura Ativa</span>
@@ -1151,6 +1278,24 @@ function FarmDetailsModal({
                     <strong>Funcionários</strong>
                   </span>
                 </button>
+                <button
+                  className={`farm-overview-block ${activeBlock === "protocolos" ? "active" : ""}`}
+                  onClick={() => setActiveBlock("protocolos")}
+                >
+                  <ClipboardCheck size={24} />
+                  <span>
+                    <strong>Protocolos</strong>
+                  </span>
+                </button>
+                <button
+                  className={`farm-overview-block ${activeBlock === "renovacoes" ? "active" : ""}`}
+                  onClick={() => setActiveBlock("renovacoes")}
+                >
+                  <RefreshCw size={24} />
+                  <span>
+                    <strong>Renovações</strong>
+                  </span>
+                </button>
                 <button className="farm-overview-block" type="button">
                   <Calendar size={24} />
                   <span>
@@ -1164,7 +1309,7 @@ function FarmDetailsModal({
                 >
                   <Info size={24} />
                   <span>
-                    <strong>Informações da Fazenda</strong>
+                    <strong>Planilha de Documentos</strong>
                   </span>
                 </button>
                 <button
@@ -1290,11 +1435,11 @@ function FarmDetailsModal({
               {informationModalOpen && (
                 <div className="nested-document-modal farm-information-modal">
                   <div className="nested-document-modal-header">
-                    <strong>Informações da Fazenda</strong>
+                    <strong>Planilha de Documentos</strong>
                     <button
                       className="modal-close-btn"
                       onClick={() => setInformationModalOpen(false)}
-                      aria-label="Fechar informações"
+                      aria-label="Fechar planilha de documentos"
                     >
                       <X size={18} />
                     </button>
@@ -1448,6 +1593,22 @@ function FarmDetailsModal({
                   </span>
                 </div>
               )}
+              {activeBlock === "protocolos" && (
+                <div className="farm-overview-placeholder">
+                  <strong>Protocolos</strong>
+                  <span>
+                    Detalhes desta área serão definidos na próxima etapa.
+                  </span>
+                </div>
+              )}
+              {activeBlock === "renovacoes" && (
+                <div className="farm-overview-placeholder">
+                  <strong>Renovações</strong>
+                  <span>
+                    Detalhes desta área serão definidos na próxima etapa.
+                  </span>
+                </div>
+              )}
               {activeBlock === "relacao" && (
                 relationModalOpen && <FarmRelationModal farm={farm} token={token} onClose={() => setRelationModalOpen(false)} onSaved={onSaved} />
               )}
@@ -1472,7 +1633,10 @@ const relationFields = [
 ] as const;
 
 function FarmRelationModal({ farm, token, onClose, onSaved }: { farm: Farm; token: string; onClose: () => void; onSaved: (farm: Farm) => void }) {
-  const [values, setValues] = useState<Record<string, string>>(farm.relationData ?? {});
+  const [values, setValues] = useState<Record<string, string>>(() => ({
+    ...(farm.relationData ?? {}),
+    area: formatAreaHectares(farm.areaHectares),
+  }));
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1492,10 +1656,16 @@ function FarmRelationModal({ farm, token, onClose, onSaved }: { farm: Farm; toke
   }
 
   async function save() {
+    const areaHectares = parseAreaHectares(values.area ?? "");
+    if (areaHectares === null) {
+      setError("Informe uma área válida em hectares.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
-      const response = await fetch(`${API_URL}/farms/${farm.id}`, { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ relationData: values }) });
+      const relationData = Object.fromEntries(Object.entries(values).filter(([key]) => key !== "area"));
+      const response = await fetch(`${API_URL}/farms/${farm.id}`, { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ relationData, areaHectares }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.message ?? "Não foi possível salvar a relação.");
       onSaved(data);

@@ -1,0 +1,104 @@
+name: agroclaw-prod
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Defina POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?Defina POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - app-private
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  backend:
+    image: ghcr.io/${GHCR_OWNER:?Defina GHCR_OWNER}/fazendas-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    init: true
+    command: ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/migrate-farm-covers.ts && node dist/src/main.js"]
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: ${DATABASE_URL:?Defina DATABASE_URL apontando para db}
+      JWT_SECRET: ${JWT_SECRET:?Defina um JWT_SECRET forte}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_ENDPOINT: ${GROQ_ENDPOINT:-https://api.groq.com/openai/v1/chat/completions}
+      STORAGE_ROOT: /app/storage
+    volumes:
+      - app-storage:/app/storage
+    expose:
+      - "3001"
+    networks:
+      - app-private
+      - traefik
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:?Defina a rede Docker do Traefik}
+      traefik.http.routers.agroclaw-api.rule: "Host(`${APP_DOMAIN:?Defina APP_DOMAIN}`) && PathPrefix(`/api`)"
+      traefik.http.routers.agroclaw-api.entrypoints: ${TRAEFIK_ENTRYPOINT:?Defina a entrypoint HTTPS do Traefik}
+      traefik.http.routers.agroclaw-api.priority: "100"
+      traefik.http.routers.agroclaw-api.tls: "true"
+      traefik.http.routers.agroclaw-api.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:?Defina o certresolver do Traefik}
+      traefik.http.routers.agroclaw-api.service: agroclaw-api
+      traefik.http.services.agroclaw-api.loadbalancer.server.port: "3001"
+
+  frontend:
+    image: ghcr.io/${GHCR_OWNER:?Defina GHCR_OWNER}/fazendas-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    init: true
+    expose:
+      - "3000"
+    networks:
+      - traefik
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:?Defina a rede Docker do Traefik}
+      traefik.http.routers.agroclaw-web.rule: "Host(`${APP_DOMAIN:?Defina APP_DOMAIN}`)"
+      traefik.http.routers.agroclaw-web.entrypoints: ${TRAEFIK_ENTRYPOINT:?Defina a entrypoint HTTPS do Traefik}
+      traefik.http.routers.agroclaw-web.priority: "10"
+      traefik.http.routers.agroclaw-web.tls: "true"
+      traefik.http.routers.agroclaw-web.tls.certresolver: ${TRAEFIK_CERT_RESOLVER:?Defina o certresolver do Traefik}
+      traefik.http.routers.agroclaw-web.service: agroclaw-web
+      traefik.http.services.agroclaw-web.loadbalancer.server.port: "3000"
+
+volumes:
+  postgres-data:
+    name: agroclaw-prod-postgres
+  app-storage:
+    name: agroclaw-prod-storage
+
+networks:
+  app-private:
+    driver: bridge
+  traefik:
+    name: ${TRAEFIK_NETWORK:?Defina a rede Docker do Traefik}
+    external: true
