@@ -352,8 +352,26 @@ export default function Home({
   const [loginError, setLoginError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
 
-  useEffect(() => setToken(window.localStorage.getItem("agroclaw_token")), []);
+  useEffect(() => {
+    const savedToken = window.localStorage.getItem("agroclaw_token");
+    setToken(savedToken);
+    if (savedToken) {
+      setAuthReady(true);
+      return;
+    }
+    fetch(`${API_URL}/auth/setup-status`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Não foi possível verificar a configuração inicial.");
+        const data = await response.json();
+        setSetupRequired(data.needsSetup === true);
+      })
+      .catch((error) => setLoginError(error instanceof Error ? error.message : "Não foi possível verificar a configuração inicial."))
+      .finally(() => setAuthReady(true));
+  }, []);
   useEffect(() => {
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (...args) => {
@@ -383,6 +401,7 @@ export default function Home({
       const data = await response.json();
       window.localStorage.setItem("agroclaw_token", data.accessToken);
       setToken(data.accessToken);
+      setSetupRequired(false);
     } catch (error) {
       setLoginError(
         error instanceof Error ? error.message : "Não foi possível entrar.",
@@ -392,6 +411,37 @@ export default function Home({
     }
   }
 
+  async function setup(event: FormEvent) {
+    event.preventDefault();
+    if (password !== confirmPassword) {
+      setLoginError("As senhas não coincidem.");
+      return;
+    }
+    setLoginLoading(true);
+    setLoginError("");
+    try {
+      const response = await fetch(`${API_URL}/auth/setup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 409) setSetupRequired(false);
+        throw new Error(Array.isArray(data.message) ? data.message.join(", ") : data.message ?? "Não foi possível criar o usuário administrador.");
+      }
+      window.localStorage.setItem("agroclaw_token", data.accessToken);
+      setSetupRequired(false);
+      setToken(data.accessToken);
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : "Não foi possível criar o usuário administrador.");
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+
+  if (!authReady)
+    return <div className="app-loading">Verificando configuração...</div>;
   if (token === null)
     return (
       <LoginPage
@@ -399,9 +449,13 @@ export default function Home({
         password={password}
         setEmail={setEmail}
         setPassword={setPassword}
+        confirmPassword={confirmPassword}
+        setConfirmPassword={setConfirmPassword}
+        setupRequired={setupRequired}
         error={loginError}
         loading={loginLoading}
         onSubmit={login}
+        onSetup={setup}
       />
     );
   return (
@@ -422,9 +476,13 @@ function LoginPage(props: {
   password: string;
   setEmail: (v: string) => void;
   setPassword: (v: string) => void;
+  confirmPassword: string;
+  setConfirmPassword: (v: string) => void;
+  setupRequired: boolean;
   error: string;
   loading: boolean;
   onSubmit: (e: FormEvent) => void;
+  onSetup: (e: FormEvent) => void;
 }) {
   return (
     <main className="login-page">
@@ -438,13 +496,14 @@ function LoginPage(props: {
             <span>Farm Manager</span>
           </div>
         </div>
-        <h1>Acessar sistema</h1>
-        <p>Entre com o usuário administrador para continuar.</p>
-        <form className="login-form" onSubmit={props.onSubmit}>
+        <h1>{props.setupRequired ? "Criar primeiro usuário" : "Acessar sistema"}</h1>
+        <p>{props.setupRequired ? "Não há usuários cadastrados. Crie a primeira conta administradora." : "Entre com o usuário administrador para continuar."}</p>
+        <form className="login-form" onSubmit={props.setupRequired ? props.onSetup : props.onSubmit}>
           <label>
             E-mail
             <input
               type="email"
+              autoComplete="username"
               value={props.email}
               onChange={(e) => props.setEmail(e.target.value)}
               required
@@ -454,14 +513,17 @@ function LoginPage(props: {
             Senha
             <input
               type="password"
+              autoComplete={props.setupRequired ? "new-password" : "current-password"}
+              minLength={props.setupRequired ? 8 : undefined}
               value={props.password}
               onChange={(e) => props.setPassword(e.target.value)}
               required
             />
           </label>
+          {props.setupRequired && <label>Confirmar senha<input type="password" autoComplete="new-password" minLength={8} value={props.confirmPassword} onChange={(e) => props.setConfirmPassword(e.target.value)} required /></label>}
           {props.error && <div className="login-error">{props.error}</div>}
           <button type="submit" disabled={props.loading}>
-            {props.loading ? "Entrando..." : "Entrar"}
+            {props.loading ? "Salvando..." : props.setupRequired ? "Criar usuário administrador" : "Entrar"}
           </button>
         </form>
       </section>
