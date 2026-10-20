@@ -18,6 +18,7 @@ COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=build /app/dist ./dist
 COPY prisma ./prisma
+COPY src/farms/cover-storage.ts ./src/farms/cover-storage.ts
 RUN mkdir -p /app/storage
 EXPOSE 3001
 CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/seed.ts && node dist/src/main.js"]

@@ -8,6 +8,7 @@ import { ObligationsModule } from './obligations/obligations.module';
 import { HealthController } from './health.controller';
 import { AiModule } from './ai/ai.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   controllers: [HealthController],
@@ -20,6 +21,7 @@ import { PrismaModule } from './prisma/prisma.module';
     FoldersModule,
     DocumentsModule,
     AiModule,
+    UsersModule,
   ],
 })
 export class AppModule {}

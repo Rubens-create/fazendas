@@ -169,8 +169,8 @@ input:focus, textarea:focus, select:focus {
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
@@ -901,6 +901,59 @@ svg.lucide, i[data-lucide] svg {
   color: var(--text-primary);
 }
 
+.fazendas-summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-md);
+}
+
+.fazendas-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 280px;
+  min-height: 48px;
+  padding: 0 var(--space-lg);
+  background: var(--bg-input);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-tertiary);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+.fazendas-search:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-primary-glow);
+  background: var(--bg-body);
+}
+
+.fazendas-search svg {
+  flex: 0 0 auto;
+}
+
+.fazendas-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--font-size-sm);
+}
+
+.fazendas-search input:focus {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.fazendas-empty-search {
+  grid-column: 1 / -1;
+  padding: var(--space-xl);
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
 .fazendas-stats {
   display: flex;
   gap: var(--space-md);
@@ -1147,24 +1200,36 @@ svg.lucide, i[data-lucide] svg {
    ============================================ */
 .agenda-layout {
   display: grid;
-  grid-template-columns: 340px 1fr;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 1fr);
   gap: var(--space-2xl);
   height: 100%;
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  .agenda-layout { grid-template-columns: 1fr; }
 }
 
 /* Calendar */
 .calendar-panel {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1.1 / 1;
+  max-height: calc(100vh - var(--header-height) - var(--space-2xl) - var(--space-2xl));
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
   padding: var(--space-lg);
-  height: fit-content;
   box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
 .calendar-header {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--space-lg);
@@ -1199,8 +1264,11 @@ svg.lucide, i[data-lucide] svg {
 }
 
 .calendar-grid {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: auto repeat(6, minmax(0, 1fr));
   gap: 3px;
 }
 
@@ -1222,7 +1290,7 @@ svg.lucide, i[data-lucide] svg {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all var(--transition-fast);
-  min-height: 34px;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1338,12 +1406,17 @@ svg.lucide, i[data-lucide] svg {
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .tasks-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-md);
 }
 
 .tasks-header h3 {
@@ -1411,8 +1484,13 @@ svg.lucide, i[data-lucide] svg {
 
 .tasks-list {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--space-sm);
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 
 .task-item {
@@ -1543,6 +1621,10 @@ svg.lucide, i[data-lucide] svg {
 }
 
 .breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  line-height: 1.4;
   color: var(--text-tertiary);
   cursor: pointer;
   transition: color var(--transition-fast);
@@ -1797,6 +1879,16 @@ svg.lucide, i[data-lucide] svg {
 
   .fazendas-grid {
     grid-template-columns: 1fr;
+  }
+
+  .fazendas-summary {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .fazendas-search {
+    flex: 1;
+    min-width: 0;
   }
 
   .pastas-grid {

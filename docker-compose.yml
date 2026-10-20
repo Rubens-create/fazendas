@@ -22,6 +22,7 @@ services:
       context: ./backend
     container_name: agroclaw-backend
     restart: unless-stopped
+    command: ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/migrate-farm-covers.ts && node dist/src/main.js"]
     env_file:
       - ./backend/.env
     environment:
@@ -45,15 +46,18 @@ services:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:3001/api
+        NEXT_PUBLIC_API_URL: /api
+        INTERNAL_API_URL: http://backend:3001/api
     container_name: agroclaw-frontend
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+      NEXT_PUBLIC_API_URL: /api
+      INTERNAL_API_URL: http://backend:3001/api
     ports:
       - "3002:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   agroclaw-postgres-data:

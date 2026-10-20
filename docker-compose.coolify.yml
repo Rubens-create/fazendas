@@ -1,0 +1,74 @@
+# Configure only the frontend domain in Coolify: service frontend, port 3000, path /.
+# Do not assign a public /api domain to backend. Next.js proxies /api over the Compose network.
+# Coolify generates SERVICE_PASSWORD_64_POSTGRES and SERVICE_HEX_64_JWT.
+# This feature-branch tag exists in GHCR; switch IMAGE_TAG to latest after merging to main.
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-POSTGRES_DB_FAZENDAS}
+      POSTGRES_USER: ${POSTGRES_USER:-Fazendas}
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_64_POSTGRES}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  backend:
+    image: ghcr.io/rubens-create/fazendas-backend:${IMAGE_TAG:-feat-farm-cover-storage}
+    pull_policy: always
+    restart: unless-stopped
+    init: true
+    command: ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/migrate-farm-covers.ts && node dist/src/main.js"]
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-Fazendas}:${SERVICE_PASSWORD_64_POSTGRES}@db:5432/${POSTGRES_DB:-POSTGRES_DB_FAZENDAS}?schema=public"
+      JWT_SECRET: ${SERVICE_HEX_64_JWT}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_ENDPOINT: ${GROQ_ENDPOINT:-https://api.groq.com/openai/v1/chat/completions}
+      STORAGE_ROOT: /app/storage
+    volumes:
+      - app-storage:/app/storage
+    expose:
+      - "3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  frontend:
+    image: ghcr.io/rubens-create/fazendas-frontend:${IMAGE_TAG:-feat-farm-cover-storage}
+    pull_policy: always
+    restart: unless-stopped
+    init: true
+    environment:
+      INTERNAL_API_URL: http://backend:3001/api
+    expose:
+      - "3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  postgres-data:
+  app-storage:
