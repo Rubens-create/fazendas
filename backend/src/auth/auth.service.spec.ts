@@ -7,7 +7,7 @@ import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 
 describe('AuthService first-user setup', () => {
-  const user = { id: 'admin-1', email: 'admin@example.com', role: 'ADMIN', passwordHash: 'hash' };
+  const user = { id: 'admin-1', email: 'admin@example.com', role: 'SUPER_ADMIN', passwordHash: 'hash' };
   let prisma: any;
   let txUser: any;
   let jwt: any;
@@ -32,14 +32,14 @@ describe('AuthService first-user setup', () => {
     await expect((service as any).setupStatus()).resolves.toEqual({ needsSetup: false });
   });
 
-  it('creates a single admin with a bcrypt hash and returns a login token', async () => {
+  it('creates the first user as super admin with a bcrypt hash and returns a login token', async () => {
     const result = await (service as any).setup({ email: ' ADMIN@Example.com ', password: 'strong-pass-123' });
 
     expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
     expect(txUser.create).toHaveBeenCalledWith({
-      data: { email: 'admin@example.com', passwordHash: expect.any(String), role: 'ADMIN' },
+      data: { email: 'admin@example.com', passwordHash: expect.any(String), role: 'SUPER_ADMIN' },
       select: { id: true, email: true, role: true },
     });
     const savedHash = txUser.create.mock.calls[0][0].data.passwordHash;

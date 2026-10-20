@@ -7,6 +7,7 @@ import FarmCoverImage from "../components/FarmCoverImage";
 import FarmWizard, { checklistGroups, formatAreaHectares, parseAreaHectares } from "../components/FarmWizard";
 import { ChecklistCategoryFieldset } from "./checklist-category-fieldset";
 import { farmDocumentRows } from "./farm-document-rows";
+import UsersPage from "./users-page";
 import {
   Bell,
   Bot,
@@ -42,7 +43,8 @@ import {
   X,
 } from "lucide-react";
 
-type Tab = "dashboard" | "agente-ia" | "fazendas" | "agenda" | "pastas";
+type Tab = "dashboard" | "agente-ia" | "fazendas" | "agenda" | "pastas" | "usuarios";
+type SessionUser = { id: string; email: string; role: "ADMIN" | "SUPER_ADMIN" };
 type ChecklistField = "documentDate" | "dueDate" | "renewalComments" | "renewalDate" | "documentStatus";
 type Farm = {
   id: string;
@@ -99,6 +101,7 @@ const pageMeta: Record<Tab, { title: string; subtitle: string }> = {
   },
   agenda: { title: "Agenda", subtitle: "Calendário e tarefas da fazenda" },
   pastas: { title: "Pastas", subtitle: "Arquivos e documentos organizados" },
+  usuarios: { title: "Usuários", subtitle: "Contas e acessos ao sistema" },
 };
 
 function formatDate(value: string) {
@@ -434,7 +437,7 @@ export default function Home({
       setSetupRequired(false);
       setToken(data.accessToken);
     } catch (error) {
-      setLoginError(error instanceof Error ? error.message : "Não foi possível criar o usuário administrador.");
+      setLoginError(error instanceof Error ? error.message : "Não foi possível criar a conta inicial.");
     } finally {
       setLoginLoading(false);
     }
@@ -497,7 +500,7 @@ function LoginPage(props: {
           </div>
         </div>
         <h1>{props.setupRequired ? "Criar primeiro usuário" : "Acessar sistema"}</h1>
-        <p>{props.setupRequired ? "Não há usuários cadastrados. Crie a primeira conta administradora." : "Entre com o usuário administrador para continuar."}</p>
+        <p>{props.setupRequired ? "Não há usuários cadastrados. A primeira conta terá acesso de super administrador." : "Entre com sua conta para continuar."}</p>
         <form className="login-form" onSubmit={props.setupRequired ? props.onSetup : props.onSubmit}>
           <label>
             E-mail
@@ -523,7 +526,7 @@ function LoginPage(props: {
           {props.setupRequired && <label>Confirmar senha<input type="password" autoComplete="new-password" minLength={8} value={props.confirmPassword} onChange={(e) => props.setConfirmPassword(e.target.value)} required /></label>}
           {props.error && <div className="login-error">{props.error}</div>}
           <button type="submit" disabled={props.loading}>
-            {props.loading ? "Salvando..." : props.setupRequired ? "Criar usuário administrador" : "Entrar"}
+            {props.loading ? "Salvando..." : props.setupRequired ? "Criar super administrador" : "Entrar"}
           </button>
         </form>
       </section>
@@ -543,7 +546,22 @@ function Dashboard({
   onLogout: () => void;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
   const meta = pageMeta[tab];
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((user: SessionUser | null) => {
+        if (!cancelled) setCurrentUser(user);
+      })
+      .catch(() => {
+        if (!cancelled) setCurrentUser(null);
+      });
+    return () => { cancelled = true; };
+  }, [token]);
   return (
     <div className="app-layout">
       {mobileOpen && (
@@ -611,13 +629,27 @@ function Dashboard({
               setMobileOpen(false);
             }}
           />
+          {currentUser?.role === "SUPER_ADMIN" && (
+            <>
+              <div className="sidebar-section-label">Administração</div>
+              <NavItem
+                icon={<Users />}
+                label="Usuários"
+                active={tab === "usuarios"}
+                onClick={() => {
+                  setTab("usuarios");
+                  setMobileOpen(false);
+                }}
+              />
+            </>
+          )}
         </nav>
         <div className="sidebar-footer">
           <div className="user-profile">
-            <div className="user-avatar">RA</div>
+            <div className="user-avatar">{currentUser?.email.slice(0, 1).toUpperCase() ?? "A"}</div>
             <div className="user-info">
-              <span className="user-name">Administrador</span>
-              <span className="user-role">Administrador</span>
+              <span className="user-name">{currentUser?.email ?? "Conta"}</span>
+              <span className="user-role">{currentUser?.role === "SUPER_ADMIN" ? "Super administrador" : "Administrador"}</span>
             </div>
             <button
               className="user-settings-btn"
@@ -684,6 +716,7 @@ function TabContent({ tab, token }: { tab: Tab; token: string }) {
   if (tab === "fazendas") return <FarmsPage token={token} />;
   if (tab === "agenda") return <AgendaPage token={token} />;
   if (tab === "pastas") return <FoldersPage token={token} />;
+  if (tab === "usuarios") return <UsersPage token={token} />;
   return <AiPage token={token} />;
 }
 
@@ -1319,7 +1352,7 @@ function FarmDetailsModal({
                 >
                   <ClipboardList size={24} />
                   <span>
-                    <strong>RELAÇÃO</strong>
+                    <strong>Relação</strong>
                   </span>
                 </button>
               </div>
@@ -1483,9 +1516,18 @@ function FarmDetailsModal({
                             .map((group) => ({
                               ...group,
                               rows: group.rows.filter(
-                                (row) =>
-                                  !searchTerm ||
-                                  normalizeDocumentName(`${group.abbreviation} ${row.name}`).includes(searchTerm),
+                                (row) => {
+                                  const selected = editableChecklist.some(
+                                    (item) =>
+                                      normalizeDocumentName(item.label ?? item.documentKey) ===
+                                      normalizeDocumentName(row.name),
+                                  );
+                                  return (
+                                    selected &&
+                                    (!searchTerm ||
+                                      normalizeDocumentName(`${group.abbreviation} ${row.name}`).includes(searchTerm))
+                                  );
+                                },
                               ),
                             }))
                             .filter((group) => group.rows.length > 0);
@@ -1678,7 +1720,7 @@ function FarmRelationModal({ farm, token, onClose, onSaved }: { farm: Farm; toke
   }
 
   return <div className="nested-document-modal farm-relation-modal">
-    <div className="nested-document-modal-header"><div><strong>RELAÇÃO</strong><span>Dados cadastrais e territoriais da fazenda</span></div><button className="modal-close-btn" onClick={onClose} aria-label="Fechar relação"><X size={18} /></button></div>
+    <div className="nested-document-modal-header"><div><strong>Relação</strong><span>Dados cadastrais e territoriais da fazenda</span></div><button className="modal-close-btn" onClick={onClose} aria-label="Fechar relação"><X size={18} /></button></div>
     <div className="farm-relation-edit-grid">{relationFields.map(([key, label, Icon]) => <div className="farm-relation-edit-item" key={key}><Icon size={19} /><label>{label}<input disabled={editingKey !== key} value={values[key] ?? ""} placeholder="—" onChange={event => setValues(old => ({ ...old, [key]: event.target.value }))} /></label>{values[key]?.trim() && <button type="button" className={`input-action-btn relation-copy-btn ${copiedKey === key ? "copied" : ""}`} onClick={() => void copyValue(key)} aria-label={`Copiar ${label}`} title={copiedKey === key ? "Copiado" : `Copiar ${label}`} >{copiedKey === key ? <Check size={15} /> : <Copy size={15} />}</button>}<button type="button" className={`input-action-btn ${editingKey === key ? "relation-editing" : ""}`} onClick={() => setEditingKey(editingKey === key ? null : key)} aria-label={`Editar ${label}`} title={`Editar ${label}`}><Pencil size={15} /></button></div>)}</div>
     {error && <div className="login-error">{error}</div>}
     <div className="form-actions"><button type="button" className="btn btn-ghost" onClick={onClose}>Fechar</button><button type="button" className="btn btn-primary" onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar Relação"}</button></div>
@@ -1885,6 +1927,7 @@ function CalendarGrid({ items }: { items: Obligation[] }) {
   ];
   const firstDay = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
   const days = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const trailingDays = 42 - firstDay - days;
   const previous = () =>
     setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1));
   const next = () =>
@@ -1930,6 +1973,9 @@ function CalendarGrid({ items }: { items: Obligation[] }) {
             </div>
           );
         })}
+        {Array.from({ length: trailingDays }).map((_, index) => (
+          <div className="calendar-day other-month" key={`empty-end-${index}`} />
+        ))}
       </div>
     </>
   );

@@ -114,4 +114,5 @@ model ChatMessage {
 
 enum UserRole {
   ADMIN
+  SUPER_ADMIN
 }

@@ -32,7 +32,7 @@ export class AuthService {
           if ((await tx.user.count()) > 0)
             throw new ConflictException('A conta inicial já foi criada.');
           return tx.user.create({
-            data: { email, passwordHash, role: 'ADMIN' },
+            data: { email, passwordHash, role: 'SUPER_ADMIN' },
             select: { id: true, email: true, role: true },
           });
         },
